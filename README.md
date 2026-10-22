@@ -91,7 +91,9 @@ entrée comprise avec le dénivelé). Légal si **attaque ≥ défense** ; le d�
 - Une **Sentinelle qui sort** fait gagner son camp **immédiatement**, à condition d'être la **première pièce sortie
   de la partie** (tous camps confondus). Sinon, c'est une sortie ordinaire (points + compte pour la 2e sortie).
 - Sinon, le **premier joueur qui fait sortir sa deuxième pièce** gagne.
-- Un joueur qui n'a **plus aucune pièce sur le plateau** (capturées ou sorties) a **perdu**. Une pièce capturée ne compte jamais
+- Un joueur qui n'a **plus aucune pièce sur le plateau** : si la dernière a été **capturée**, il a **perdu** ; si elle
+  est **sortie**, il **gagne** si l'adversaire ne peut plus l'égaler (score + Force de ses pièces restantes), partie
+  **nulle** si l'adversaire peut au mieux égaliser, sinon il **perd**. Une pièce capturée ne compte jamais
   comme une sortie. Chaque sortie rapporte aussi la Force de la pièce en points (utilisés à la limite de coups).
 - 200 coups (un coup = le tour d'un joueur, passes comprises) : meilleur score en points ; si personne n'a marqué,
   la pièce la plus avancée (moins de rangées à franchir), puis la plus grande Force de cette pièce, sinon nulle.

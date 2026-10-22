@@ -66,14 +66,23 @@ describe('élimination', () => {
     expect(eng.getState().result).toEqual({ winner: 1, reason: 'eliminated' });
   });
 
-  it("faire sortir sa dernière pièce sans gagner fait perdre (plus de pièce sur le plateau)", () => {
-    // J1 n'a plus qu'une Avant-garde, pas de sortie avant : elle sort, J1 n'a plus rien → J2 gagne.
-    const v = piece('vanguard', 1, 9, 4);
+  // Sortie de la dernière pièce : on compare ses points au maximum atteignable par l'adversaire.
+  const lastExit = (foeScore: number, foeType: 'explorer' | 'vanguard' | 'sentinel') => {
+    const v = piece('vanguard', 1, 9, 4); // sortie : J1 aura 2 points
     const gone = piece('explorer', 1, 0, 0, 'captured');
-    const foe = piece('explorer', 2, 5, 5);
-    const eng = new LocalEngine(state(flat(), [v, gone, foe]));
+    const foe = piece(foeType, 2, 5, 5);
+    const eng = new LocalEngine(state(flat(), [v, gone, foe], 1, { score: { 1: 0, 2: foeScore } }));
     eng.play(exitOf(eng, v.id));
-    expect(eng.getState().result).toEqual({ winner: 2, reason: 'eliminated' });
+    return eng.getState().result;
+  };
+  it("dernière pièce sortie : l'adversaire ne peut plus égaler → victoire", () => {
+    expect(lastExit(0, 'explorer')).toEqual({ winner: 1, reason: 'eliminated' }); // 0 + 1 < 2
+  });
+  it("dernière pièce sortie : l'adversaire peut au mieux égaler → nulle", () => {
+    expect(lastExit(0, 'vanguard')).toEqual({ winner: 'draw', reason: 'eliminated' }); // 0 + 2 = 2
+  });
+  it("dernière pièce sortie : l'adversaire peut dépasser → défaite", () => {
+    expect(lastExit(0, 'sentinel')).toEqual({ winner: 2, reason: 'eliminated' }); // 0 + 3 > 2
   });
 });
 

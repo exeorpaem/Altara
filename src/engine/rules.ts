@@ -87,7 +87,7 @@ export const RULES = {
      * Sinon, c'est une sortie ordinaire : elle rapporte ses points et compte pour exitsToWin.
      */
     sentinelMustExitFirst: true,
-    /** Un joueur qui n'a plus aucune pièce sur le plateau (capturées ou sorties) a perdu. */
+    /** Plus aucune pièce sur le plateau : défaite (ou comparaison des scores si la dernière est sortie). */
     noPiecesLoses: true,
   },
   /**

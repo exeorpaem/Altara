@@ -80,7 +80,8 @@ implémentation des règles (core/actions) sert à l'interface ET à l'IA.
 - Fin de partie (règle actuelle, décidée par l'utilisateur) :
   - une **Sentinelle qui sort fait gagner immédiatement**, seulement si c'est la **1re pièce sortie de
     la partie** (tous camps) ; sinon sortie ordinaire ;
-  - un joueur **sans pièce sur le plateau** a perdu (raison « eliminated ») ;
+  - joueur **sans pièce sur le plateau** (raison « eliminated ») : dernière capturée → perd ; dernière sortie →
+    gagne si l'adversaire ne peut plus l'égaler, nulle si égalité au mieux, sinon perd ;
   - sinon le **premier joueur à faire sortir sa 2e pièce** gagne (pièces capturées : ne comptent pas) ;
   - 200 coups (passes comprises) : meilleur score en points, sinon pièce la plus avancée, puis plus
     grande Force, sinon nulle ;
@@ -89,8 +90,8 @@ implémentation des règles (core/actions) sert à l'interface ET à l'IA.
 ## Hypothèses à faire confirmer (ne pas trancher seul)
 
 1. `RULES.movement.exitInSameMove = true` : atteindre la dernière rangée et sortir dans le même coup.
-2. Un joueur qui fait sortir sa **dernière** pièce sans gagner perd (plus de pièce sur le plateau) :
-   application littérale de « plus de pièce = perdu », à confirmer.
+2. (Tranché) Dernière pièce SORTIE : gagne si l'adversaire ne peut plus l'égaler (score + Force de ses
+   pièces restantes < ses points), nulle si au mieux égalité, sinon perd. Dernière pièce CAPTURÉE : perd.
 3. **Charge** : l'utilisateur a demandé si elle compte le *coût* (actuel, conforme à sa consigne) ou le
    *nombre de cases* parcourues — **question restée sans réponse**.
 4. Notation d'attaque depuis la case de départ (ex. `A G4×H6`).

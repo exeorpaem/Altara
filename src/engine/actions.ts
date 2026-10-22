@@ -226,18 +226,30 @@ function byScore(s: CoreState, reason: GameResult['reason']): GameResult {
   return { winner: a > b ? 1 : b > a ? 2 : 'draw', reason };
 }
 
-/** Un joueur sans aucune pièce sur le plateau a perdu (null si les deux en ont encore). */
-function eliminationResult(s: CoreState): GameResult | null {
-  let on1 = 0;
-  let on2 = 0;
+/**
+ * Un joueur sans aucune pièce sur le plateau :
+ *  - si sa dernière pièce a été CAPTURÉE : il a perdu ;
+ *  - si sa dernière pièce est SORTIE : on compare ses points au maximum que l'adversaire
+ *    peut encore atteindre (score + Force de ses pièces sur le plateau) :
+ *    adversaire incapable de l'égaler → il gagne ; égalité possible au mieux → nulle ; sinon il perd.
+ * Renvoie null si les deux joueurs ont encore des pièces.
+ */
+function eliminationResult(s: CoreState, byExit: boolean): GameResult | null {
+  const on = [0, 0, 0];
+  const potential = [0, s.score[1], s.score[2]];
   for (let p = 0; p < s.ptype.length; p++) {
     if (s.pstatus[p] !== ST_BOARD) continue;
-    if (s.pplayer[p] === 1) on1++;
-    else on2++;
+    on[s.pplayer[p]]++;
+    potential[s.pplayer[p]] += STRENGTH[s.ptype[p]];
   }
-  if (on1 && on2) return null;
+  if (on[1] && on[2]) return null;
   // Les deux à zéro est impossible : un coup ne retire qu'une pièce à la fois.
-  return { winner: on1 ? 1 : 2, reason: 'eliminated' };
+  const out: PlayerId = on[1] ? 2 : 1;
+  const foe: PlayerId = out === 1 ? 2 : 1;
+  if (!byExit) return { winner: foe, reason: 'eliminated' };
+  const mine = s.score[out];
+  const best = potential[foe];
+  return { winner: best < mine ? out : best === mine ? 'draw' : foe, reason: 'eliminated' };
 }
 
 /**
@@ -351,7 +363,7 @@ export function makeAction(s: CoreState, a: Action): Undo {
     case K_PASS:
       break;
   }
-  if (!s.result && RULES.end.noPiecesLoses && a.kind !== K_PASS) s.result = eliminationResult(s);
+  if (!s.result && RULES.end.noPiecesLoses && a.kind !== K_PASS) s.result = eliminationResult(s, a.kind === K_EXIT);
   s.turn++;
   s.current = s.current === 1 ? 2 : 1;
   s.h1 ^= Z_SIDE[0];
@@ -405,7 +417,7 @@ export function sentinelExitWinsNow(exitsBefore: number): boolean {
 /** Vrai si l'action donne immédiatement la victoire au joueur qui la joue (tri des coups, niveau Facile). */
 export function isImmediateWin(s: CoreState, a: Action): boolean {
   if (a.kind === K_ATTACK && RULES.end.noPiecesLoses) {
-    // Capturer la dernière pièce adverse sur le plateau.
+    // Capturer la dernière pièce adverse sur le plateau (une sortie de sa dernière pièce, elle, dépend des scores).
     const foe = s.pplayer[a.target];
     for (let p = 0; p < s.ptype.length; p++) if (p !== a.target && s.pstatus[p] === ST_BOARD && s.pplayer[p] === foe) return false;
     return true;
