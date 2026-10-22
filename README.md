@@ -27,7 +27,7 @@ npm run selfplay   # IA contre IA, sans rendu (voir plus bas)
 src/
   engine/            pur TypeScript (aucun Three.js, aucun DOM)
     rules.ts         ← TOUTES les constantes de règles et la définition des pièces
-    terrain.ts       générateur de plateaux (6 modes, seed, symétrie, lissage)
+    terrain.ts       générateur de plateaux (10 modes, seed, symétrie, lissage)
     core.ts          position compacte (tableaux typés), Dijkstra borné, Zobrist
     actions.ts       génération des coups, jouer/annuler, fin de partie
     combat.ts        calcul des forces d'attaque et de défense

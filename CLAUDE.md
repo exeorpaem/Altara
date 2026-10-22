@@ -33,6 +33,8 @@ npm run selfplay -- --duel 50 --equity 100 --jobs 4
 npm run selfplay -- --only ladder --ladder 1-3,3-5,5-7,7-9 --ladder-games 8
 ```
 
+Modes de terrain : random, mountains, valleys, highlands, woods, desert, volcano, archipelago, marsh, canyon.
+
 Débogage navigateur : ajouter `?debug` à l'URL expose `window.__altara`
 (`engine()`, `view()`, `board()`, `ai`, `sound`, `screenOf(row, col)`, `soundDemo()`).
 Paramètres d'URL : `?mode=woods&seed=KNVDF0&skin=dunes&ai=5|local&cadence=10+0`.
@@ -42,7 +44,7 @@ Paramètres d'URL : `?mode=woods&seed=KNVDF0&skin=dunes&ai=5|local&cadence=10+0`
 ```
 src/engine/   PUR TypeScript (ni Three.js ni DOM) — toute la logique de jeu
   rules.ts      TOUTES les constantes de règles + définition des pièces (point d'entrée des réglages)
-  terrain.ts    générateur (6 modes, seed, symétrie 180°, lissage |Δh| ≤ 2)
+  terrain.ts    générateur (10 modes, seed, symétrie 180°, lissage |Δh| ≤ 2)
   core.ts       position compacte (tableaux typés), Dijkstra borné (file à seaux), Zobrist
   actions.ts    génération des coups, make/unmake, fin de partie, attaques refusées
   combat.ts     calcul des forces (attaque / défense, détail des modificateurs)

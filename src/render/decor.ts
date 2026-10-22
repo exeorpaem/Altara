@@ -548,10 +548,10 @@ function prop(acc: Acc, kind: Prop, x: number, y: number, z: number, s: number, 
       break;
     case 'lantern': // lanterne douce sur piquet
       acc.add('cyl6', [x, y, z], [0.012 * s, 0.4 * s, 0.012 * s], 0, pal.trunk);
-      (acc.glow ?? acc).add('ico', [x, y + 0.42 * s, z], [0.06 * s, 0.07 * s, 0.06 * s], ry, pal.glow);
+      (acc.glow ?? acc).add('ico', [x, y + 0.42 * s, z], [0.1 * s, 0.12 * s, 0.1 * s], ry, pal.glow);
       break;
     case 'firefly':
-      for (let i = 0; i < 3; i++) (acc.glow ?? acc).add('ico', [x + (rnd() - 0.5) * 0.5 * s, y + (0.2 + rnd() * 0.5) * s, z + (rnd() - 0.5) * 0.5 * s], [0.018, 0.018, 0.018], 0, pal.glow);
+      for (let i = 0; i < 3; i++) (acc.glow ?? acc).add('ico', [x + (rnd() - 0.5) * 0.5 * s, y + (0.2 + rnd() * 0.5) * s, z + (rnd() - 0.5) * 0.5 * s], [0.035, 0.035, 0.035], 0, pal.glow);
       break;
     case 'slabs':
       acc.add('box', [x, y, z], [0.34 * s, 0.07 * s, 0.24 * s], ry, pal.stone);
@@ -627,7 +627,7 @@ function decorateSkinAccents(acc: Acc, terrain: Terrain, pal: DecorPalette, skin
   if (!list) return;
   const rnd = mulberry32(hashSeed(`${terrain.seed}:skin:${skin.id}`));
   const half = terrain.size / 2;
-  const perSide = 8;
+  const perSide = 10;
   for (let side = 0; side < 4; side++) {
     for (let i = 0; i < perSide; i++) {
       const u = ((i + 0.2 + rnd() * 0.6) / perSide) * (half * 2 + 1) - (half + 0.5);
@@ -637,7 +637,7 @@ function decorateSkinAccents(acc: Acc, terrain: Terrain, pal: DecorPalette, skin
       if (side === 2) { x = u; z = off; }
       if (side === 3) { x = -off; z = u; }
       const front = side === 2 ? 0.6 : 1.2;
-      prop(acc, pickWeighted(list, rnd), x, 0, z, (0.8 + rnd() * 0.6) * front * lift(terrain, x, z), rnd, pal);
+      prop(acc, pickWeighted(list, rnd), x, 0, z, (1.2 + rnd() * 0.6) * front * lift(terrain, x, z), rnd, pal);
     }
   }
   // Quelques accents sur les îlots flottants.
