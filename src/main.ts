@@ -661,8 +661,17 @@ window.addEventListener('keydown', (e) => {
 $('btn-default').onclick = () => rig.defaultView(engine.getState().current);
 $('btn-top').onclick = () => rig.topView();
 $<HTMLInputElement>('follow').onchange = (e) => (e.target as HTMLInputElement).checked && rig.defaultView(engine.getState().current);
-// Sur petit écran, le panneau démarre replié.
-if (window.innerWidth < 700) ($('panel') as HTMLDetailsElement).open = false;
+// Sur petit écran (< 700 px), les tiroirs (réglages, historique, légende) démarrent repliés
+// et un seul peut être ouvert à la fois.
+const narrow = () => window.innerWidth < 700;
+const drawers = [...document.querySelectorAll<HTMLDetailsElement>('details.drawer')];
+if (narrow()) for (const d of drawers) d.open = false;
+for (const d of drawers) {
+  d.addEventListener('toggle', () => {
+    if (d.open && narrow()) for (const o of drawers) if (o !== d) o.open = false;
+    document.body.classList.toggle('drawer-open', drawers.some((x) => x.open));
+  });
+}
 
 setupRulesPanel($('btn-rules'));
 applySkin(skin);
