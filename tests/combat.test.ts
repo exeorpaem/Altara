@@ -7,19 +7,20 @@ import type { Move } from '../src/engine/types';
 const attackOn = (moves: Move[], targetId: string) => moves.find((m) => m.kind === 'attack' && m.targetId === targetId);
 
 describe('combat — exemples officiels', () => {
-  it('Avant-garde (h=1) contre Avant-garde (h=0) avec 1 renfort : 3 contre 3 → capture', () => {
+  it("Avant-garde (appui h=1) contre Avant-garde (h=0) avec 1 renfort : 3 contre 3 → capture", () => {
     const atk = piece('vanguard', 1, 4, 4);
     const def = piece('vanguard', 2, 4, 6);
     const help = piece('explorer', 2, 5, 6); // renfort du défenseur
-    const g = state(flat([[4, 4, 1]]), [atk, def, help]);
+    const g = state(flat([[4, 4, 1], [4, 5, 1]]), [atk, def, help]);
     const eng = new LocalEngine(g);
     const move = attackOn(eng.getLegalMoves(atk.id), def.id)!;
     expect(move).toBeDefined();
-    expect(move.cost).toBe(3); // descente (2) + entrée à plat (1) : pas de charge
+    expect(move.cost).toBe(3); // pas à plat (1) + entrée en descente (2) : pas de charge
+    expect(move.path.at(-2)).toEqual({ row: 4, col: 5 }); // case d'appui en hauteur
     const pv = eng.previewAttack(move);
     expect(pv.attack).toBe(3);
     expect(pv.defense).toBe(3);
-    expect(pv.details).toContain('+1 hauteur (attaque depuis plus haut)');
+    expect(pv.details).toContain('+1 hauteur (appui plus haut que la cible)');
     expect(pv.details).toContain('+1 renfort (Explorateur)');
 
     eng.play(move);
@@ -60,16 +61,30 @@ describe('combat — modificateurs', () => {
     expect(move).toBeDefined();
     const pv = eng.previewAttack(move);
     expect([pv.attack, pv.defense]).toEqual([3, 3]);
-    expect(pv.details).toContain('−1 hauteur (attaque en montée)');
+    expect(pv.details).toContain('−1 hauteur (appui plus bas que la cible)');
   });
 
-  it("la hauteur se compare depuis la case de départ de l'attaquant, pas depuis la case d'appui", () => {
-    // Départ à h=0, case d'appui à h=1, cible à h=1 → départ plus bas : −1
+  it("la hauteur se compare depuis la case d'appui, pas depuis la case de départ", () => {
+    // Départ à h=0, case d'appui (4,4) à h=1, cible à h=1 → même hauteur : 0.
+    // Les autres cases d'appui sont à h=0 (−1) : le moteur choisit (4,4).
     const atk = piece('sentinel', 1, 4, 3);
     const def = piece('explorer', 2, 4, 5);
     const eng = new LocalEngine(state(flat([[4, 4, 1], [4, 5, 1]]), [atk, def]));
-    const pv = eng.previewAttack(attackOn(eng.getLegalMoves(atk.id), def.id)!);
-    expect(pv.attack).toBe(2);
+    const move = attackOn(eng.getLegalMoves(atk.id), def.id)!;
+    expect(move.path.at(-2)).toEqual({ row: 4, col: 4 });
+    expect(eng.previewAttack(move).attack).toBe(3);
+  });
+
+  it("plusieurs cases d'appui : le moteur prend celle qui donne la meilleure attaque", () => {
+    // Cible à h=0. Appui le moins cher (4,4) à h=0 → 1 contre 1 ; appui (3,5) à h=1 → 2 contre 1.
+    const atk = piece('explorer', 1, 3, 3);
+    const def = piece('explorer', 2, 4, 5);
+    const eng = new LocalEngine(state(flat([[3, 4, 1], [3, 5, 1]]), [atk, def]));
+    const move = attackOn(eng.getLegalMoves(atk.id), def.id)!;
+    expect(move.path.at(-2)).toEqual({ row: 3, col: 5 });
+    expect(move.cost).toBe(5); // montée (2) + plat (1) + entrée en descente (2)
+    const pv = eng.previewAttack(move);
+    expect([pv.attack, pv.defense]).toEqual([2, 1]);
   });
 
   it("charge de l'Avant-garde : chemin de coût 4 → +1", () => {
@@ -138,13 +153,13 @@ describe('combat — modificateurs', () => {
 });
 
 describe('attaques refusées (anneau gris)', () => {
-  it('trop faible : à portée, mais attaque < défense (2 contre 3)', () => {
-    const v = piece('vanguard', 1, 4, 3);
+  it('trop faible : à portée, mais attaque < défense (1 contre 3)', () => {
+    const v = piece('explorer', 1, 4, 3);
     const s = piece('sentinel', 2, 4, 5);
     const eng = new LocalEngine(state(flat(), [v, s]));
     expect(eng.getLegalMoves(v.id).some((m) => m.kind === 'attack')).toBe(false);
     const [b] = eng.getBlockedAttacks(v.id);
-    expect(b).toMatchObject({ targetId: s.id, reason: 'weak', attack: 2, defense: 3, cost: 2 });
+    expect(b).toMatchObject({ targetId: s.id, reason: 'weak', attack: 1, defense: 3, cost: 2 });
     expect(b.path.at(-1)).toEqual({ row: 4, col: 5 });
   });
 

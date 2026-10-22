@@ -46,10 +46,11 @@ export interface MoveRecord {
 
 /**
  * sentinel : une Sentinelle est sortie ; secondExit : un joueur a fait sortir sa 2e pièce ;
+ * eliminated : l'adversaire n'a plus aucune pièce sur le plateau ;
  * moveLimit : limite de coups ; time : pendule tombée. (« score » : ancienne règle, conservé
  * pour relire les vieilles sauvegardes.)
  */
-export type EndReason = 'sentinel' | 'secondExit' | 'score' | 'moveLimit' | 'time';
+export type EndReason = 'sentinel' | 'secondExit' | 'eliminated' | 'score' | 'moveLimit' | 'time';
 
 /**
  * Pendule (cadence « minutes + incrément », comme aux échecs).

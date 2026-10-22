@@ -10,8 +10,9 @@ const anyMove = (eng: LocalEngine, id: string) => eng.getLegalMoves(id).find((m)
 describe('score', () => {
   it("une sortie rapporte la Force de la pièce et la retire du plateau", () => {
     const v = piece('vanguard', 1, 9, 4);
+    const spare = piece('explorer', 1, 2, 2); // J1 garde une pièce sur le plateau
     const foe = piece('explorer', 2, 5, 5);
-    const eng = new LocalEngine(state(flat(), [v, foe]));
+    const eng = new LocalEngine(state(flat(), [v, spare, foe]));
     eng.play(exitOf(eng, v.id));
     const s = eng.getState();
     expect(s.score).toEqual({ 1: 2, 2: 0 });
@@ -30,14 +31,58 @@ describe('victoire de la Sentinelle', () => {
     expect(eng.getLegalMoves(foe.id)).toHaveLength(0); // partie terminée
   });
 
-  it('une Sentinelle qui sort en deuxième fait AUSSI gagner immédiatement', () => {
-    // J1 a déjà fait sortir une Avant-garde… puis J2 sort une Sentinelle : J2 gagne.
+  it("une Sentinelle qui sort en deuxième ne gagne PAS : sortie ordinaire", () => {
+    // J1 a déjà fait sortir une Avant-garde… puis J2 sort une Sentinelle : la partie continue.
     const out = piece('vanguard', 1, 9, 2, 'exited');
     const s2 = piece('sentinel', 2, 0, 4);
+    const spare = piece('explorer', 2, 7, 7); // J2 garde une pièce sur le plateau
     const j1 = piece('explorer', 1, 5, 5);
-    const eng = new LocalEngine(state(flat(), [out, s2, j1], 2, { score: { 1: 2, 2: 0 }, history: [exitRecord(out)] }));
+    const eng = new LocalEngine(state(flat(), [out, s2, spare, j1], 2, { score: { 1: 2, 2: 0 }, history: [exitRecord(out)] }));
     eng.play(exitOf(eng, s2.id));
-    expect(eng.getState().result).toEqual({ winner: 2, reason: 'sentinel' });
+    const st = eng.getState();
+    expect(st.result).toBeNull();
+    expect(st.score).toEqual({ 1: 2, 2: 3 }); // elle rapporte quand même sa Force
+  });
+
+  it('une Sentinelle sortie en deuxième compte pour la règle des 2 sorties', () => {
+    // J2 a déjà sorti un Explorateur : sa Sentinelle est sa 2e sortie, J2 gagne par 2e sortie.
+    const out = piece('explorer', 2, 0, 2, 'exited');
+    const s2 = piece('sentinel', 2, 0, 4);
+    const j1 = piece('explorer', 1, 5, 5);
+    const eng = new LocalEngine(state(flat(), [out, s2, j1], 2, { score: { 1: 0, 2: 1 }, history: [exitRecord(out)] }));
+    eng.play(exitOf(eng, s2.id));
+    expect(eng.getState().result).toEqual({ winner: 2, reason: 'secondExit' });
+  });
+});
+
+describe('élimination', () => {
+  it("capturer la dernière pièce adverse fait gagner", () => {
+    const atk = piece('sentinel', 1, 4, 4);
+    const last = piece('explorer', 2, 4, 5);
+    const gone = piece('vanguard', 2, 0, 0, 'captured');
+    const eng = new LocalEngine(state(flat(), [atk, last, gone]));
+    const m = eng.getLegalMoves(atk.id).find((x) => x.kind === 'attack' && x.targetId === last.id)!;
+    eng.play(m);
+    expect(eng.getState().result).toEqual({ winner: 1, reason: 'eliminated' });
+  });
+
+  // Sortie de la dernière pièce : on compare ses points au maximum atteignable par l'adversaire.
+  const lastExit = (foeScore: number, foeType: 'explorer' | 'vanguard' | 'sentinel') => {
+    const v = piece('vanguard', 1, 9, 4); // sortie : J1 aura 2 points
+    const gone = piece('explorer', 1, 0, 0, 'captured');
+    const foe = piece(foeType, 2, 5, 5);
+    const eng = new LocalEngine(state(flat(), [v, gone, foe], 1, { score: { 1: 0, 2: foeScore } }));
+    eng.play(exitOf(eng, v.id));
+    return eng.getState().result;
+  };
+  it("dernière pièce sortie : l'adversaire ne peut plus égaler → victoire", () => {
+    expect(lastExit(0, 'explorer')).toEqual({ winner: 1, reason: 'eliminated' }); // 0 + 1 < 2
+  });
+  it("dernière pièce sortie : l'adversaire peut au mieux égaler → nulle", () => {
+    expect(lastExit(0, 'vanguard')).toEqual({ winner: 'draw', reason: 'eliminated' }); // 0 + 2 = 2
+  });
+  it("dernière pièce sortie : l'adversaire peut dépasser → défaite", () => {
+    expect(lastExit(0, 'sentinel')).toEqual({ winner: 2, reason: 'eliminated' }); // 0 + 3 > 2
   });
 });
 
@@ -54,8 +99,9 @@ describe('fin par deuxième sortie', () => {
   it('une sortie de chaque camp ne termine pas la partie', () => {
     const out = piece('vanguard', 2, 0, 2, 'exited'); // J2 a sorti une pièce
     const v1 = piece('vanguard', 1, 9, 4); // J1 sort sa première
+    const spare = piece('explorer', 1, 2, 2); // J1 garde une pièce sur le plateau
     const j2 = piece('explorer', 2, 5, 5);
-    const eng = new LocalEngine(state(flat(), [out, v1, j2], 1, { score: { 1: 0, 2: 2 }, history: [exitRecord(out)] }));
+    const eng = new LocalEngine(state(flat(), [out, v1, spare, j2], 1, { score: { 1: 0, 2: 2 }, history: [exitRecord(out)] }));
     eng.play(exitOf(eng, v1.id));
     expect(eng.getState().result).toBeNull();
     expect(eng.getState().score).toEqual({ 1: 2, 2: 2 });

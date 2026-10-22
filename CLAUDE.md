@@ -1,0 +1,129 @@
+# CLAUDE.md — contexte du projet Altara
+
+Ce fichier est lu automatiquement par Claude Code. Il résume l'état du projet, les décisions prises
+et ce qui reste à faire. **Le garder à jour** à la fin de chaque session de travail.
+
+## Le projet
+
+**Altara** : jeu de stratégie 3D pour 2 joueurs (refonte originale d'un jeu de plateau « traversée »).
+Faire sortir ses pièces par le bord adverse d'un plateau 10×10 en relief. Ne jamais réutiliser le nom
+ni les éléments graphiques du jeu d'origine.
+
+- Dépôt : https://github.com/exeorpaem/Altara · jeu publié (GitHub Pages) : https://exeorpaem.github.io/Altara/
+- Stack : Vite + TypeScript + Three.js, HTML/CSS simple, Vitest. **Aucune autre dépendance** sans justification.
+
+## Préférences de l'utilisateur (Alexis)
+
+- Répondre **en français**, de façon **concise** (pas de reformulation, pas de récapitulatif inutile).
+- **Débutant en développement** : expliquer les concepts clés quand c'est utile, sans condescendance.
+- **Règle ambiguë → demander** (1 à 5 questions ciblées) au lieu de choisir en silence. Les choix
+  provisoires sont signalés comme « HYPOTHÈSE » dans le code et listés ci-dessous.
+- Être direct et honnête, même pour dire qu'une approche est mauvaise.
+- Commentaires de code **en français** sur les parties non évidentes.
+
+## Commandes
+
+```bash
+npm install
+npm run dev          # jeu : http://localhost:5173/ · vitrine des pièces : /showcase/
+npm test             # 80 tests Vitest (tous doivent passer avant chaque commit)
+npx tsc --noEmit     # vérification des types
+npm run build        # build de production (BASE_PATH=/Altara/ pour GitHub Pages)
+npm run selfplay -- --duel 50 --equity 100 --jobs 4
+npm run selfplay -- --only ladder --ladder 1-3,3-5,5-7,7-9 --ladder-games 8
+```
+
+Débogage navigateur : ajouter `?debug` à l'URL expose `window.__altara`
+(`engine()`, `view()`, `board()`, `ai`, `sound`, `screenOf(row, col)`, `soundDemo()`).
+Paramètres d'URL : `?mode=woods&seed=KNVDF0&skin=dunes&ai=5|local&cadence=10+0`.
+
+## Architecture (voir aussi README.md)
+
+```
+src/engine/   PUR TypeScript (ni Three.js ni DOM) — toute la logique de jeu
+  rules.ts      TOUTES les constantes de règles + définition des pièces (point d'entrée des réglages)
+  terrain.ts    générateur (6 modes, seed, symétrie 180°, lissage |Δh| ≤ 2)
+  core.ts       position compacte (tableaux typés), Dijkstra borné (file à seaux), Zobrist
+  actions.ts    génération des coups, make/unmake, fin de partie, attaques refusées
+  combat.ts     calcul des forces (attaque / défense, détail des modificateurs)
+  movement.ts   coups « lisibles » avec chemins pour l'interface
+  engine.ts     LocalEngine implémente GameEngine (types.ts) : play(move, elapsedMs), undo, flag,
+                getPotentialMoves (inspection), getBlockedAttacks (anneau gris), serialize/load
+  ai/evaluate.ts  évaluation + EVAL_WEIGHTS ; ai/search.ts  niveaux 1–10 (AI_LEVELS), alpha-bêta, TT
+src/ai/       Web Worker de l'IA + client (poignée de main, délai de garde, repli fil principal)
+src/render/   scène, plateau, pièces procédurales, game-view (sélection, marqueurs, animations), skins
+src/ui/       CSS, pendule (clock.ts), sound design Web Audio (sound.ts)
+src/main.ts   page de jeu (branche tout ensemble)
+scripts/selfplay.ts   IA contre IA sans rendu, rapport dans reports/
+.github/workflows/    ci.yml (types + tests + build) · pages.yml (déploiement GitHub Pages)
+```
+
+**Règle d'architecture** : le rendu ne dépend que de l'interface `GameEngine` ; une seule
+implémentation des règles (core/actions) sert à l'interface ET à l'IA.
+
+## Règles implémentées (état actuel)
+
+- Plateau 10×10, hauteurs 0–6, |Δh| ≤ 2 entre voisins, symétrie par rotation de 180°, seed affichée.
+- Pièces (Mouvement + Force = 6) : Explorateur 5/1, Avant-garde 4/2, Sentinelle 3/3. Socle à M côtés,
+  sommet à N pointes. Départ centré : colonnes C à H (2 cases libres de chaque côté), J2 par symétrie.
+- Déplacement orthogonal ; pas = 1 à plat, sinon |Δh| + 1 ; pas de traversée de pièce ; pas de fin sur
+  la case de départ. Explorateur à la place : diagonale ou bond de 2 (relief ignoré, arrivée ET case
+  intermédiaire vides) ; ces coups spéciaux n'attaquent pas et ne sortent pas.
+- Sortie par la rangée adverse s'il reste ≥ 1 point (coût 1) ; rapporte la Force en points.
+- Combat : chemin normal jusqu'à une case adjacente + entrée (dénivelé compris), coût ≤ Mouvement.
+  Légal si attaque ≥ défense (égalité = l'attaquant gagne). Défenseur retiré, l'attaquant prend sa case.
+  - Attaque = Force + hauteur (±1 : **case d'appui** — voisine de la cible, d'où l'on entre — vs case
+    de la cible) + Force de chaque autre allié adjacent à la cible + charge (+1 Avant-garde si le chemin
+    passant par la case d'appui **coûte** exactement 4).
+  - Case d'appui choisie **automatiquement** : la meilleure attaque, puis la moins chère.
+  - Défense = Force + 1 par allié du défenseur adjacent à lui. Hauteur des alliés/renforts ignorée.
+- Fin de partie (règle actuelle, décidée par l'utilisateur) :
+  - une **Sentinelle qui sort fait gagner immédiatement**, seulement si c'est la **1re pièce sortie de
+    la partie** (tous camps) ; sinon sortie ordinaire ;
+  - joueur **sans pièce sur le plateau** (raison « eliminated ») : dernière capturée → perd ; dernière sortie →
+    gagne si l'adversaire ne peut plus l'égaler, nulle si égalité au mieux, sinon perd ;
+  - sinon le **premier joueur à faire sortir sa 2e pièce** gagne (pièces capturées : ne comptent pas) ;
+  - 200 coups (passes comprises) : meilleur score en points, sinon pièce la plus avancée, puis plus
+    grande Force, sinon nulle ;
+  - pendule (10+0 par défaut, chute = défaite, raison « time ») ; joueur sans coup légal : passe.
+
+## Hypothèses à faire confirmer (ne pas trancher seul)
+
+1. `RULES.movement.exitInSameMove = true` : atteindre la dernière rangée et sortir dans le même coup.
+2. (Tranché) Dernière pièce SORTIE : gagne si l'adversaire ne peut plus l'égaler (score + Force de ses
+   pièces restantes < ses points), nulle si au mieux égalité, sinon perd. Dernière pièce CAPTURÉE : perd.
+3. **Charge** : l'utilisateur a demandé si elle compte le *coût* (actuel, conforme à sa consigne) ou le
+   *nombre de cases* parcourues — **question restée sans réponse**.
+4. Notation d'attaque depuis la case de départ (ex. `A G4×H6`).
+
+## Faits connus / pièges
+
+- La limite de 200 coups favorise J2 (il joue le dernier coup avant le départage) : déséquilibre
+  mesuré surtout en mode Vallées. Non corrigé (décision de règle à prendre par l'utilisateur).
+- Les rapports d'équité dans `reports/` datent de l'**ancienne** règle de fin (2 sorties tous camps,
+  1re sortie Sentinelle) : à relancer avec la règle actuelle.
+- Le Web Worker de l'IA peut être bloqué par une CSP (aperçus intégrés) : le client bascule alors sur
+  le fil principal (Difficile limité à 1 s). Ne pas retirer ce repli.
+- Sous Vitest, ne pas dépendre de l'ordre des tests ; les tests de terrain tournent 6 000 générations.
+- Charge + case d'appui automatique : une Avant-garde peut obtenir la charge en contournant la cible
+  (chemin de coût 4 par une autre case d'appui) → 3 contre 3 contre une Sentinelle isolée sur terrain plat.
+
+## Fait (résumé)
+
+Moteur complet et testé (80 tests) · rendu low-poly pastel, 6 skins, île flottante · sélection,
+marqueurs, aperçu de chemin, animations · inspection des pièces adverses (anneaux creux) · anneau gris
+des attaques refusées avec explication · IA 1 à 10 dans un Web Worker · pendule · sound design
+synthétisé (une gamme pentatonique, voix par camp, ambiance) · bouton Annuler / Ctrl+Z · clic droit =
+désélection · CI et déploiement GitHub Pages.
+
+## Reste à faire (cahier des charges initial, étape 5 non terminée)
+
+- [ ] **Historique** : panneau latéral avec notation, clic = relecture de la position, retour au présent.
+- [ ] **Sauvegarde automatique** (localStorage via serialize/load, try/catch) + reprise proposée à l'accueil.
+- [ ] **Écran d'accueil** (mode, terrain, seed facultative) — aujourd'hui tout est dans le panneau.
+- [ ] **Mode daltonien** : motif ou liseré par camp en plus de la couleur.
+- [ ] **Fiche de règles** accessible en jeu (panneau repliable) — à mettre à jour avec la règle de fin actuelle.
+- [ ] Boutons Recommencer / Menu en jeu ; affichage des pièces sorties et capturées.
+- [ ] Relancer le self-play d'équité avec la nouvelle règle de fin et commenter les résultats.
+- [ ] Vérifier que les deux GitHub Actions passent après le premier envoi, et que Pages est activé
+      (Settings → Pages → Source : GitHub Actions).

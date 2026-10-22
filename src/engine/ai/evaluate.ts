@@ -5,7 +5,7 @@
 // fait la différence (moi − adversaire). Les poids sont dans EVAL_WEIGHTS,
 // pour être réglés sans toucher au code.
 import { RULES, type PlayerId } from '../rules';
-import { pieceActions, K_ATTACK, type Action } from '../actions';
+import { pieceActions, sentinelExitWinsNow, K_ATTACK, type Action } from '../actions';
 import { MOVEMENT, SENTINEL, ST_BOARD, STRENGTH, type CoreState } from '../core';
 
 export interface EvalWeights {
@@ -102,10 +102,11 @@ export function evaluate(s: CoreState, me: PlayerId, w: EvalWeights = EVAL_WEIGH
     const pos = s.ppos[p];
     let t = w.material * str;
 
-    // Course vers la sortie. Une sortie qui fait gagner (Sentinelle, ou 2e pièce
-    // d'un joueur qui en a déjà sorti une) compte beaucoup plus qu'une autre.
+    // Course vers la sortie. Une sortie qui fait gagner (Sentinelle tant que rien n'est sorti,
+    // ou 2e pièce d'un joueur qui en a déjà sorti une) compte beaucoup plus qu'une autre.
     const d = exitDist[pl][pos];
-    const winningExit = type === SENTINEL || s.exited[pl] + 1 >= RULES.end.exitsToWin;
+    const winningExit =
+      (type === SENTINEL && sentinelExitWinsNow(s.exits)) || s.exited[pl] + 1 >= RULES.end.exitsToWin;
     const boost = winningExit ? w.sentinelThreat : 1;
     t += w.race * str * Math.max(0, w.raceHorizon - d) * boost;
     if (d <= MOVEMENT[type]) t += w.exitReady * str * boost;

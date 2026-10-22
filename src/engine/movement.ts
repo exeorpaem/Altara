@@ -68,7 +68,7 @@ export function blockedAttackList(state: GameState, pieceId: string): BlockedAtt
     const path: Cell[] = [];
     for (let c = b.via; c !== -1; c = c === s.ppos[p] ? -1 : buf.prev[c]) path.unshift(cellOf(s, c));
     path.push(cellOf(s, s.ppos[b.target]));
-    const r = combat(s, p, b.target, b.cost, true);
+    const r = combat(s, p, b.target, b.cost, b.via, true);
     return {
       pieceId,
       targetId: s.ids[b.target],
