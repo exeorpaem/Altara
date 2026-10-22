@@ -262,7 +262,7 @@ function eliminationResult(s: CoreState, byExit: boolean): GameResult | null {
  *    (nulle si aucun des deux n'en a).
  */
 export function moveLimitResult(s: CoreState): GameResult {
-  if (s.score[1] > 0 || s.score[2] > 0) return byScore(s, 'moveLimit');
+  if (RULES.limitScoreOnly || s.score[1] > 0 || s.score[2] > 0) return byScore(s, 'moveLimit');
   const size = s.topo.size;
   const best = [null, { rows: Infinity, str: 0 }, { rows: Infinity, str: 0 }];
   for (let p = 0; p < s.ptype.length; p++) {

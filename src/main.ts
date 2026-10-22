@@ -349,7 +349,9 @@ function showEnd(s: GameState) {
     moveLimit:
       s.score[1] || s.score[2]
         ? `Limite de ${RULES.maxTurns} coups atteinte : ${w === 'draw' ? `égalité au score (${sc})` : `${NAMES[w]} a le meilleur score (${sc})`}.`
-        : `Limite de ${RULES.maxTurns} coups atteinte sans sortie : ${w === 'draw' ? 'pièces les plus avancées à égalité (rangées et Force).' : `la pièce la plus avancée de ${NAMES[w]} est la plus proche de la sortie.`}`,
+        : RULES.limitScoreOnly
+          ? `Limite de ${RULES.maxTurns} coups atteinte sans sortie : partie nulle.`
+          : `Limite de ${RULES.maxTurns} coups atteinte sans sortie : ${w === 'draw' ? 'pièces les plus avancées à égalité (rangées et Force).' : `la pièce la plus avancée de ${NAMES[w]} est la plus proche de la sortie.`}`,
   };
   $('end-reason').textContent = reasons[r.reason];
   $('end-score').innerHTML = ([1, 2] as PlayerId[])

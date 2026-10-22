@@ -123,17 +123,8 @@ describe('fin par deuxième sortie', () => {
 });
 
 describe('limite de coups', () => {
-  it("le joueur qui a commencé joue un coup de réponse après le 200e coup", () => {
-    expect(TURN_LIMIT).toBe(RULES.maxTurns + 1);
-    // Au 200e coup (le second joueur vient de jouer), la partie continue.
-    const a = piece('sentinel', 1, 4, 4);
-    const b = piece('sentinel', 2, 6, 6);
-    const eng = new LocalEngine(state(flat(), [a, b], 2, { turn: RULES.maxTurns - 1 }));
-    eng.play(anyMove(eng, b.id) as Move);
-    expect(eng.getState().result).toBeNull();
-    expect(eng.getState().current).toBe(1);
-    eng.play(anyMove(eng, a.id) as Move);
-    expect(eng.getState().result?.reason).toBe('moveLimit');
+  it("pas de coup de réponse final : la partie s'arrête au 200e coup", () => {
+    expect(TURN_LIMIT).toBe(RULES.maxTurns);
   });
 
   const last = TURN_LIMIT - 1;
@@ -152,24 +143,12 @@ describe('limite de coups', () => {
     expect(s.result).toEqual({ winner: 2, reason: 'moveLimit' });
   });
 
-  it('sans score : la pièce la plus avancée gagne', () => {
-    const a = piece('explorer', 1, 1, 0); // J1 : il lui reste 8 rangées au mieux…
-    const a2 = piece('explorer', 1, 7, 9); // …non : 2 rangées
+  it("sans score : match nul, même si une pièce est plus avancée (seul le score départage)", () => {
+    const a = piece('explorer', 1, 1, 0);
+    const a2 = piece('explorer', 1, 7, 9); // J1 : 2 rangées à franchir
     const b = piece('sentinel', 2, 3, 5); // J2 : 3 rangées
     const s = atLimit(state(flat(), [a, a2, b], 1, { turn: last }), a.id);
-    expect(s.result).toEqual({ winner: 1, reason: 'moveLimit' });
-  });
-
-  it('sans score, à avancée égale : la plus grande Force gagne', () => {
-    const a = piece('explorer', 1, 7, 0); // 2 rangées, Force 1
-    const b = piece('vanguard', 2, 2, 9); // 2 rangées, Force 2
-    const s = atLimit(state(flat(), [a, b], 1, { turn: last }), a.id);
-    // Le coup de J1 peut faire avancer son Explorateur : on choisit un coup qui reste à 2 rangées.
-    expect(s.result?.reason).toBe('moveLimit');
-    const eng = new LocalEngine(state(flat(), [a, b], 1, { turn: last }));
-    const sideways = eng.getLegalMoves(a.id).find((m) => m.kind === 'move' && m.path.at(-1)!.row === 7)!;
-    eng.play(sideways);
-    expect(eng.getState().result).toEqual({ winner: 2, reason: 'moveLimit' });
+    expect(s.result).toEqual({ winner: 'draw', reason: 'moveLimit' });
   });
 
   it('sans score, avancée et Force égales : nulle', () => {

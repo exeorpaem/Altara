@@ -107,8 +107,7 @@ function sections(): Section[] {
           ${end.noPiecesLoses ? `<li><b>Plus aucune pièce sur le plateau</b> :
             si la dernière a été <b>capturée</b>, tu perds. Si elle est <b>sortie</b>, tu gagnes quand l'adversaire ne peut plus
             t'égaler (son score + la Force de ses pièces restantes) ; c'est <b>nul</b> s'il peut au mieux égaler ; sinon tu perds.</li>` : ''}
-          <li><b>Limite de ${maxTurns} coups</b> (passes comprises)${RULES.finalReply ? ', puis un dernier coup de réponse pour le camp qui a commencé : chaque camp a ainsi pu répondre au dernier coup adverse' : ''} : le meilleur score en points gagne. Si personne n'a marqué,
-            la pièce la plus avancée, puis la plus grande Force, sinon partie nulle.</li>
+          <li><b>Limite de ${maxTurns} coups</b> (passes comprises)${RULES.finalReply ? ', puis un dernier coup de réponse pour le camp qui a commencé : chaque camp a ainsi pu répondre au dernier coup adverse' : ''} : le meilleur score en points gagne${RULES.limitScoreOnly ? ' ; à égalité de score (y compris 0 à 0), partie nulle' : ". Si personne n'a marqué, la pièce la plus avancée, puis la plus grande Force, sinon partie nulle"}.</li>
           <li><b>Pendule</b> : le temps de réflexion est décompté pour chaque joueur ; à 0, on perd. Elle ne tourne pas
             pendant les animations. Cadence réglable ou désactivable dans « Partie &amp; décor ».</li>
           <li>Sans coup légal, on passe son tour (un message l'indique).</li>
