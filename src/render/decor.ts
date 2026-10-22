@@ -83,7 +83,7 @@ export interface DecorPalette {
   frost: THREE.Color; moss: THREE.Color; cap: THREE.Color; flowers: THREE.Color[]; cloud: THREE.Color;
   islet: THREE.Color; lava: THREE.Color; lavaGlow: THREE.Color; ash: THREE.Color; blackRock: THREE.Color;
   strata: THREE.Color[]; shrub: THREE.Color; reed: THREE.Color; lily: THREE.Color; mist: THREE.Color;
-  glow: THREE.Color; ice: THREE.Color;
+  glow: THREE.Color; ice: THREE.Color; lagoon: THREE.Color;
 }
 
 /** Palette du décor : chaque teinte « cible » est mélangée au skin pour rester cohérente avec lui. */
@@ -119,7 +119,8 @@ export function decorPalette(skin: Skin, mode: TerrainMode): DecorPalette {
     lily: mix(skin.hollow, '#5E9A62', 0.7),
     mist: mix(skin.cloud, '#FFFFFF', 0.3),
     glow: mix(skin.high, '#FFE3A0', 0.85),
-    ice: mix('#FFFFFF', '#BFE3F4', 0.45),
+    ice: mix(skin.low, '#5FA6D8', 0.8),
+    lagoon: mix(skin.hollow, '#1C6AB0', 0.85),
     islet: dry ? mix(skin.low, '#E6CF9C', 0.4) : mix(skin.low, '#86BC72', 0.5),
   };
   for (const k of Object.keys(p) as (keyof DecorPalette)[]) {
@@ -540,11 +541,11 @@ function prop(acc: Acc, kind: Prop, x: number, y: number, z: number, s: number, 
       break;
     case 'icechunk':
       acc.add('dodeca', [x, y + 0.12 * s, z], [0.2 * s, 0.17 * s, 0.17 * s], ry, pal.ice);
-      acc.add('cone5', [x + 0.15 * s, y, z], [0.09 * s, 0.26 * s, 0.09 * s], ry, pal.frost);
+      acc.add('cone5', [x + 0.15 * s, y, z], [0.09 * s, 0.26 * s, 0.09 * s], ry, pal.ice);
       break;
     case 'drift':
-      acc.add('ico', [x, y, z], [0.3 * s, 0.1 * s, 0.2 * s], ry, pal.snow);
-      acc.add('ico', [x + 0.18 * s, y, z + 0.05 * s], [0.16 * s, 0.07 * s, 0.14 * s], ry, pal.snow);
+      acc.add('ico', [x, y, z], [0.3 * s, 0.1 * s, 0.2 * s], ry, pal.ice);
+      acc.add('ico', [x + 0.18 * s, y, z + 0.05 * s], [0.16 * s, 0.07 * s, 0.14 * s], ry, pal.frost);
       break;
     case 'lantern': // lanterne douce sur piquet
       acc.add('cyl6', [x, y, z], [0.012 * s, 0.4 * s, 0.012 * s], 0, pal.trunk);
@@ -654,19 +655,19 @@ function decorateModeExtras(around: Acc, glow: Acc, sky: Acc, terrain: Terrain, 
   switch (terrain.mode) {
     case 'volcano': {
       // Coulées émissives douces le long du cône rocheux + quelques mares au pied, fumerolles autour.
-      for (let k = 0; k < 6; k++) {
-        const a = (k / 6) * Math.PI * 2 + rnd() * 0.6;
+      for (let k = 0; k < 9; k++) {
+        const a = (k / 9) * Math.PI * 2 + rnd() * 0.5;
         if (Math.abs(a % (Math.PI * 2) - Math.PI / 2) < 0.5) continue; // pas devant la caméra
-        for (let j = 0; j < 5; j++) {
-          const d = 0.2 + j * 0.8;
-          const R = 7.2 * (1 - (d + 0.5) / 6.2) * 0.95 + 0.45;
-          glow.add('box', [Math.cos(a) * R, -0.5 - d, Math.sin(a) * R], [0.16 - j * 0.015, 0.8, 0.16 - j * 0.015], -a, j % 2 ? pal.lava : pal.lavaGlow);
+        for (let j = 0; j < 7; j++) {
+          const d = 0.2 + j * 0.65;
+          const R = 7.2 * (1 - (d + 0.5) / 6.2) * 0.95 + 0.3;
+          glow.add('box', [Math.cos(a) * R, -0.5 - d, Math.sin(a) * R], [0.42 - j * 0.03, 1.1, 0.42 - j * 0.03], -a, j % 2 ? pal.lava : pal.lavaGlow);
         }
       }
       for (let k = 0; k < 5; k++) {
         const a = rnd() * Math.PI * 2;
         const dist = 12 + rnd() * 9;
-        glow.add('cyl7', [Math.cos(a) * dist, -2.5 + rnd() * 3, Math.sin(a) * dist], [0.6 + rnd() * 0.5, 0.05, 0.5], rnd() * 6, pal.lava);
+        glow.add('cyl7', [Math.cos(a) * dist, -2.5 + rnd() * 3, Math.sin(a) * dist], [1.0 + rnd() * 0.8, 0.08, 0.8], rnd() * 6, pal.lavaGlow);
       }
       for (let k = 0; k < 7; k++) {
         const a = (k / 7) * Math.PI * 2 + rnd() * 0.5;
@@ -681,8 +682,9 @@ function decorateModeExtras(around: Acc, glow: Acc, sky: Acc, terrain: Terrain, 
     }
     case 'archipelago': {
       // Lagon : disque d'eau translucide sous et autour de l'île, avec un anneau d'écume.
-      sky.add('cyl7', [0, -6.2, 0], [17, 0.05, 17], 0, pal.water);
-      sky.add('cyl7', [0, -6.1, 0], [8.5, 0.05, 8.5], 0, pal.frost);
+      sky.add('cyl7', [0, -6.3, 0], [18.2, 0.05, 18.2], 0, pal.frost); // liseré d'écume
+      sky.add('cyl7', [0, -6.2, 0], [17, 0.06, 17], 0, pal.lagoon);
+      sky.add('cyl7', [0, -6.1, 0], [8.5, 0.05, 8.5], 0, pal.water);
       for (let k = 0; k < 8; k++) {
         const a = (k / 8) * Math.PI * 2 + rnd();
         const d = 9 + rnd() * 6;
@@ -761,7 +763,7 @@ function decorateTranslucent(acc: Acc, terrain: Terrain, pal: DecorPalette) {
   // Cascade (modes à eau) : chute depuis le bord de la dalle, puis coulée le long du cône rocheux
   // (décalée vers l'extérieur pour ne pas s'enfouir dans la roche), avec des embruns au pied.
   if (terrain.mode === 'valleys' || terrain.mode === 'highlands') {
-    const z = 1.5; // côté gauche : visible dans la vue par défaut
+    const z = -2.8; // arrière-gauche : visible, loin de la légende en bas à gauche
     // Fil d'eau fin : lèvre à peine visible, chute effilée (cône retourné), embruns au pied.
     acc.add('box', [-6.5, -0.4, z], [1.8, 0.03, 0.22], 0, pal.water);
     acc.add('cone6', [-7.5, -0.4, z], [0.11, 3.0, 0.11], 0, pal.water, Math.PI);

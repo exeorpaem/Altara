@@ -49,6 +49,11 @@ describe('générateur de terrain', () => {
       const bords = cells('volcano', (r, c) => r === 0 || c === 0 || r === 9 || c === 9);
       expect(centre).toBeGreaterThan(bords + 2);
     });
+    it('volcan : hauteur moyenne décroissante par anneau autour du centre', () => {
+      const ring = (k: number) => cells('volcano', (r, c) => Math.max(Math.abs(r - 4.5), Math.abs(c - 4.5)) === k + 0.5);
+      const m = [0, 1, 2, 3, 4].map(ring);
+      for (let i = 1; i < m.length; i++) expect(m[i]).toBeLessThan(m[i - 1]);
+    });
     it('canyon : couloir central plus bas que les flancs', () => {
       const couloir = cells('canyon', (_r, c) => c >= 4 && c <= 5);
       const flancs = cells('canyon', (_r, c) => c <= 1 || c >= 8);
