@@ -10,7 +10,7 @@ import { buildDecor, type DecorView } from './render/decor';
 import { createSceneKit } from './render/scene';
 import { createCameraRig } from './render/camera';
 import { GameView } from './render/game-view';
-import { SKINS, skinById, type Skin } from './render/skins';
+import { skinForMode, type Skin } from './render/skins';
 import { AiClient } from './ai/client';
 import { SoundEngine, renderDemo, toWav } from './ui/sound';
 import { GameClock, formatClock } from './ui/clock';
@@ -35,7 +35,8 @@ const params = new URLSearchParams(location.search);
 modeEl.value = params.get('mode') ?? 'random';
 seedEl.value = (params.get('seed') ?? randomSeed()).toUpperCase();
 
-let skin: Skin = skinById(params.get('skin'));
+// Le paramètre d'URL `skin=` des anciens liens est ignoré : le skin découle du terrain.
+let skin: Skin = skinForMode(modeEl.value as TerrainMode);
 let engine: LocalEngine;
 let board: BoardView | null = null;
 let island: THREE.Group | null = null;
@@ -43,30 +44,17 @@ let decor: DecorView | null = null;
 let view: GameView | null = null;
 
 // ---------------------------------------------------------------------------
-// Skins
+// Skin (déterminé par le mode de terrain)
 // ---------------------------------------------------------------------------
-const skinsEl = $('skins');
-for (const s of SKINS) {
-  const b = document.createElement('button');
-  b.className = 'skin-btn';
-  b.dataset.id = s.id;
-  b.innerHTML = `<div class="sw"><span style="background:${s.hollow}"></span><span style="background:${s.low}"></span><span style="background:${s.high}"></span></div>${s.name}`;
-  b.onclick = () => applySkin(s);
-  skinsEl.appendChild(b);
-}
-
 function applySkin(s: Skin) {
   skin = s;
   document.documentElement.style.setProperty('--sky-top', s.sky.top);
   document.documentElement.style.setProperty('--sky-bottom', s.sky.bottom);
   (scene.fog as THREE.Fog).color.set(s.fog);
   clouds.setColor(s.cloud);
-  for (const b of skinsEl.querySelectorAll<HTMLElement>('.skin-btn')) b.classList.toggle('active', b.dataset.id === s.id);
   if (island) scene.remove(island);
   island = buildIsland(RULES.board.size, s);
   scene.add(island);
-  if (engine) rebuildBoard();
-  updateUrl();
 }
 
 function rebuildBoard() {
@@ -105,6 +93,7 @@ function newGame() {
   hideEnd();
   view?.dispose();
   view = null;
+  applySkin(skinForMode(mode)); // palette imposée par le terrain
   rebuildBoard();
   view = new GameView({
     scene,
@@ -159,7 +148,7 @@ window.addEventListener('keydown', (e) => {
 });
 // Petit « tic » sur tous les boutons de l'interface
 document.addEventListener('click', (e) => {
-  if ((e.target as HTMLElement).closest('.btn, .skin-btn')) sound.play({ type: 'ui' });
+  if ((e.target as HTMLElement).closest('.btn')) sound.play({ type: 'ui' });
 });
 refreshSoundUi();
 let gameToken = 0; // invalide les réponses d'une IA qui réfléchissait pour une partie abandonnée
@@ -388,7 +377,7 @@ opponentEl.onchange = () => {
 
 function updateUrl() {
   try {
-    history.replaceState(null, '', `?mode=${modeEl.value}&seed=${seedEl.value}&skin=${skin.id}&ai=${opponentEl.value === 'local' ? 'local' : levelEl.value}&cadence=${encodeURIComponent(cadenceEl.value)}`);
+    history.replaceState(null, '', `?mode=${modeEl.value}&seed=${seedEl.value}&ai=${opponentEl.value === 'local' ? 'local' : levelEl.value}&cadence=${encodeURIComponent(cadenceEl.value)}`);
   } catch {
     /* aperçu hors serveur : sans importance */
   }

@@ -56,7 +56,7 @@ tests/               tests Vitest
 | Poids de l'évaluation de l'IA | `src/engine/ai/evaluate.ts` → `EVAL_WEIGHTS` |
 | Réglages des niveaux d'IA (profondeur, temps, 30 % de Facile) | `src/engine/ai/search.ts` → `AI_DEFAULTS` |
 | Construction 3D des pièces | `src/render/pieces.ts` |
-| Skins du plateau | `src/render/skins.ts` |
+| Skins du plateau (un par mode de terrain, non choisis par le joueur ; `skin=` dans l'URL est ignoré) | `src/render/skins.ts` |
 | Sons (catalogue, niveaux, ambiance) | `src/ui/sound.ts` |
 | Colonnes de départ | `RULES.startColumns` |
 | Cadences proposées | `index.html` (liste « Cadence ») ; pendule : `src/ui/clock.ts` |

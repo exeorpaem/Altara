@@ -1,5 +1,6 @@
-// Skins de plateau : seul le décor change, jamais les couleurs des camps
-// (corail et lagon doivent rester lisibles sur tous les skins).
+// Skins de plateau, un par mode de terrain : seul le décor change, jamais les couleurs des camps
+// (corail et lagon doivent rester lisibles sur toutes les palettes).
+import type { TerrainMode } from '../engine/terrain';
 
 export interface Skin {
   id: string;
@@ -64,20 +65,6 @@ export const SKINS: Skin[] = [
     cloud: '#FFFFFF',
   },
   {
-    id: 'crepuscule',
-    name: 'Crépuscule',
-    low: '#C9B3CF',
-    high: '#FFEBD8',
-    hollow: '#9E9CC8',
-    hollowMix: 0.5,
-    line: '#8C7790',
-    slab: '#D8C2C8',
-    rock: '#9C8798',
-    sky: { top: '#A9A5D6', bottom: '#FFD8B8' },
-    fog: '#E9D3D6',
-    cloud: '#FFF1E8',
-  },
-  {
     id: 'ardoise',
     name: 'Ardoise',
     low: '#9EA7AE',
@@ -105,6 +92,91 @@ export const SKINS: Skin[] = [
     fog: '#E6EAE2',
     cloud: '#FFFFFF',
   },
+  {
+    id: 'foret',
+    name: 'Forêt',
+    low: '#6F9A66',
+    high: '#C9DDB0',
+    hollow: '#4F8A6A',
+    hollowMix: 0.55,
+    line: '#42593E',
+    slab: '#9C8F72',
+    rock: '#7A6D5C',
+    sky: { top: '#A5C4D6', bottom: '#DCE6CF' },
+    fog: '#C5D6C4',
+    cloud: '#F1F5EC',
+  },
+  {
+    id: 'volcan',
+    name: 'Volcan',
+    low: '#6E6862',
+    high: '#B9A89A',
+    hollow: '#4F4A4C',
+    hollowMix: 0.5,
+    line: '#2E2A2C',
+    slab: '#5A5457',
+    rock: '#3E393C',
+    sky: { top: '#CE9A5E', bottom: '#F2C08A' },
+    fog: '#C9A892',
+    cloud: '#E8C7A8',
+  },
+  {
+    id: 'lagon',
+    name: 'Lagon',
+    low: '#EAD9AE',
+    high: '#FFF8E4',
+    hollow: '#58B0E8',
+    hollowMix: 1,
+    line: '#A8946A',
+    slab: '#E6D8B8',
+    rock: '#B8A78A',
+    sky: { top: '#9CCBEA', bottom: '#F6F0DC' },
+    fog: '#E3ECF4',
+    cloud: '#FFFFFF',
+  },
+  {
+    id: 'marais',
+    name: 'Marais',
+    low: '#8A9457',
+    high: '#D6D8A8',
+    hollow: '#6C7F4E',
+    hollowMix: 0.55,
+    line: '#4F5A38',
+    slab: '#A89C78',
+    rock: '#7E7458',
+    sky: { top: '#B5C2B0', bottom: '#E4E6CC' },
+    fog: '#CBD2BC',
+    cloud: '#EEF0E0',
+  },
+  {
+    id: 'canyon',
+    name: 'Canyon',
+    low: '#CC9460',
+    high: '#F0CFA0',
+    hollow: '#C48C4C',
+    hollowMix: 0.5,
+    line: '#7A5228',
+    slab: '#D6AE80',
+    rock: '#A87238',
+    sky: { top: '#E6B88E', bottom: '#F8E2C6' },
+    fog: '#E8CDB4',
+    cloud: '#FFF1E2',
+  },
 ];
 
+/** Le skin est imposé par le mode de terrain (le joueur ne le choisit plus). */
+export const MODE_SKIN: Record<TerrainMode, string> = {
+  random: 'jardin',
+  mountains: 'banquise',
+  valleys: 'prairie',
+  highlands: 'ardoise',
+  woods: 'foret',
+  desert: 'dunes',
+  volcano: 'volcan',
+  archipelago: 'lagon',
+  marsh: 'marais',
+  canyon: 'canyon',
+};
+
 export const skinById = (id: string | null | undefined) => SKINS.find((s) => s.id === id) ?? SKINS[0];
+export const skinForMode = (mode: TerrainMode): Skin => skinById(MODE_SKIN[mode]);
