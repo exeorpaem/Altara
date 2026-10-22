@@ -52,7 +52,7 @@ src/engine/   PUR TypeScript (ni Three.js ni DOM) — toute la logique de jeu
   ai/evaluate.ts  évaluation + EVAL_WEIGHTS ; ai/search.ts  niveaux 1–10 (AI_LEVELS), alpha-bêta, TT
 src/ai/       Web Worker de l'IA + client (poignée de main, délai de garde, repli fil principal)
 src/render/   scène, plateau, pièces procédurales, game-view (sélection, marqueurs, animations), skins
-src/ui/       CSS, pendule (clock.ts), sound design Web Audio (sound.ts)
+src/ui/       CSS, pendule (clock.ts), sound design Web Audio (sound.ts), fiche de règles (rules-panel.ts)
 src/main.ts   page de jeu (branche tout ensemble)
 scripts/selfplay.ts   IA contre IA sans rendu, rapport dans reports/
 .github/workflows/    ci.yml (types + tests + build) · pages.yml (déploiement GitHub Pages)
@@ -122,7 +122,7 @@ désélection · CI et déploiement GitHub Pages.
 - [ ] **Sauvegarde automatique** (localStorage via serialize/load, try/catch) + reprise proposée à l'accueil.
 - [ ] **Écran d'accueil** (mode, terrain, seed facultative) — aujourd'hui tout est dans le panneau.
 - [ ] **Mode daltonien** : motif ou liseré par camp en plus de la couleur.
-- [ ] **Fiche de règles** accessible en jeu (panneau repliable) — à mettre à jour avec la règle de fin actuelle.
+- [x] **Fiche de règles** : bouton « Règles » / touche R (`src/ui/rules-panel.ts`, contenu lu depuis RULES/PIECES).
 - [ ] Boutons Recommencer / Menu en jeu ; affichage des pièces sorties et capturées.
 - [ ] Relancer le self-play d'équité avec la nouvelle règle de fin et commenter les résultats.
 - [ ] Vérifier que les deux GitHub Actions passent après le premier envoi, et que Pages est activé

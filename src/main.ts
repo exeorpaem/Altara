@@ -16,6 +16,7 @@ import { SoundEngine, renderDemo, toWav } from './ui/sound';
 import { GameClock, formatClock } from './ui/clock';
 import type { TimeControl } from './engine/engine';
 import { AI_LEVELS, levelNumber, type AiLevel } from './engine/ai/search';
+import { setupRulesPanel } from './ui/rules-panel';
 import type { GameState } from './engine/types';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -458,6 +459,7 @@ $<HTMLInputElement>('follow').onchange = (e) => (e.target as HTMLInputElement).c
 // Sur petit écran, le panneau démarre replié.
 if (window.innerWidth < 760) ($('panel') as HTMLDetailsElement).open = false;
 
+setupRulesPanel($('btn-rules'));
 applySkin(skin);
 newGame();
 
