@@ -125,3 +125,9 @@ body.replaying::after {
   .gv-attack { top: 150px; }
   .toast { top: 150px; max-width: calc(100vw - 32px); text-align: center; }
 }
+
+/* Mode daltonien : Corail = rond (●), Lagon = losange (◆), en plus de la couleur */
+body.cb i[data-camp='1'] { border-radius: 50%; }
+body.cb i[data-camp='2'] { border-radius: 2px; transform: rotate(45deg) scale(0.85); animation: none; }
+body.cb .pc-2 { border-radius: 4px; }
+body.cb .hist-row[data-camp='2'] { border-left-style: dashed; }

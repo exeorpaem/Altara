@@ -185,10 +185,31 @@ function crownSentinel(mat: THREE.Material, h: number): THREE.Object3D {
 export interface PieceMeshOptions {
   type: PieceType;
   player: PlayerId;
+  /** Mode daltonien : ajoute un repère non coloré sur le socle (anneau plein = Corail, pointillé = Lagon). */
+  accessible?: boolean;
+}
+
+/**
+ * Repère daltonien posé sur le dessus du socle : anneau plein pour Corail, anneau en pointillé
+ * (10 tirets) pour Lagon. Sombre, donc lisible sur les deux couleurs de camp.
+ */
+function accessibleMark(player: PlayerId, r: number): THREE.Object3D {
+  const mat = new THREE.MeshBasicMaterial({ color: '#34344a' });
+  const inner = r * 0.7;
+  const outer = r * 0.83;
+  const pts = [new THREE.Vector2(inner, 0), new THREE.Vector2(outer, 0), new THREE.Vector2(outer, 0.012), new THREE.Vector2(inner, 0.012)];
+  const g = new THREE.Group();
+  if (player === 1) g.add(new THREE.Mesh(new THREE.LatheGeometry(pts, 32), mat));
+  else {
+    const n = 10;
+    for (let k = 0; k < n; k++) g.add(new THREE.Mesh(new THREE.LatheGeometry(pts, 3, (k / n) * Math.PI * 2, ((Math.PI * 2) / n) * 0.55), mat));
+  }
+  g.position.y = BASE_H + 0.002;
+  return g;
 }
 
 /** Construit le modèle 3D complet d'une pièce. L'avant regarde vers +Z local. */
-export function buildPieceMesh({ type, player }: PieceMeshOptions): THREE.Group {
+export function buildPieceMesh({ type, player, accessible }: PieceMeshOptions): THREE.Group {
   const def = PIECES[type];
   const { height, baseRadius, waist } = def.visual;
   const camp = PALETTE.camp[player];
@@ -218,6 +239,7 @@ export function buildPieceMesh({ type, player }: PieceMeshOptions): THREE.Group 
 
   add(buildBase(def.movement, baseRadius), matBase);
   y += BASE_H;
+  if (accessible) group.add(accessibleMark(player, baseRadius));
 
   const ringR = baseRadius * 0.68;
   add(buildRing(ringR), matRing);

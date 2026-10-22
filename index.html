@@ -20,14 +20,14 @@
 
     <div class="hud-turn">
       <div class="turn-row">
-        <div class="clock" id="clock-1"><i style="background: var(--coral)"></i><b>10:00</b></div>
+        <div class="clock" id="clock-1"><i data-camp="1" style="background: var(--coral)"></i><b>10:00</b></div>
         <div class="turn-pill"><i id="turn-dot"></i><span id="turn-text"></span></div>
-        <div class="clock" id="clock-2"><i style="background: var(--lagoon)"></i><b>10:00</b></div>
+        <div class="clock" id="clock-2"><i data-camp="2" style="background: var(--lagoon)"></i><b>10:00</b></div>
       </div>
       <div class="turn-meta">
         <span>Coup <b id="turn-count">0</b> / 200</span>
-        <span class="score" id="score-1"><i style="background: var(--coral)"></i>Corail <b>0</b>/2<span class="lg"> sorties</span> <em>· 0 pt</em></span>
-        <span class="score" id="score-2"><i style="background: var(--lagoon)"></i>Lagon <b>0</b>/2<span class="lg"> sorties</span> <em>· 0 pt</em></span>
+        <span class="score" id="score-1"><i data-camp="1" style="background: var(--coral)"></i>Corail <b>0</b>/2<span class="lg"> sorties</span> <em>· 0 pt</em></span>
+        <span class="score" id="score-2"><i data-camp="2" style="background: var(--lagoon)"></i>Lagon <b>0</b>/2<span class="lg"> sorties</span> <em>· 0 pt</em></span>
       </div>
       <div class="tally-row" aria-label="Pièces sorties et capturées">
         <div class="tally" id="tally-1"></div>
@@ -43,6 +43,7 @@
         <input type="range" id="ai-level-live" min="1" max="10" step="1" value="5" />
       </div>
       <label class="check"><input type="checkbox" id="follow" /> Caméra vers le joueur actif</label>
+      <label class="check" title="Ajoute un repère non coloré par camp : anneau plein (Corail) ou pointillé (Lagon), et ● / ◆"><input type="checkbox" id="colorblind" /> Mode daltonien</label>
       <label>Son</label>
       <div class="sound-row">
         <input type="range" id="volume" min="0" max="1" step="0.05" aria-label="Volume" />

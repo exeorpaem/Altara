@@ -53,6 +53,8 @@ export interface GameViewOptions {
   overlay: HTMLElement; // calque HTML pour les étiquettes
   engine: GameEngine;
   board: BoardView;
+  /** Mode daltonien : repère non coloré sur le socle des pièces. */
+  accessible?: boolean;
   /** Appelé après chaque coup joué (mise à jour de l'interface). */
   onChange?: () => void;
   /** Élément d'interface vers lequel une pièce sortie « s'envole » (score du camp). */
@@ -140,6 +142,14 @@ export class GameView {
   // Synchronisation avec l'état du moteur
   // ---------------------------------------------------------------------------
 
+  /** Active / coupe le mode daltonien : les pièces sont reconstruites avec (ou sans) leur repère. */
+  setAccessible(on: boolean) {
+    this.o.accessible = on;
+    for (const v of this.pieces.values()) this.root.remove(v.holder);
+    this.pieces.clear();
+    this.sync();
+  }
+
   /** Affiche la position d'un moteur de relecture (lecture seule), ou revient à la partie réelle avec null. */
   setReplay(engine: GameEngine | null) {
     this.replaying = engine !== null;
@@ -176,7 +186,7 @@ export class GameView {
 
   private makePieceView(p: Piece): PieceView {
     const holder = new THREE.Group();
-    const model = buildPieceMesh({ type: p.type, player: p.player });
+    const model = buildPieceMesh({ type: p.type, player: p.player, accessible: this.o.accessible });
     // L'avant du modèle est +Z local ; J1 sort vers −Z (rangée 9), J2 vers +Z.
     model.rotation.y = p.player === 1 ? Math.PI : 0;
     holder.add(model);

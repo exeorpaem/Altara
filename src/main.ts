@@ -48,6 +48,15 @@ let island: THREE.Group | null = null;
 let decor: DecorView | null = null;
 let view: GameView | null = null;
 
+// --- Mode daltonien (mémorisé ; localStorage peut être indisponible) ---------------------
+let colorblind = false;
+try {
+  colorblind = localStorage.getItem('altara.colorblind') === '1';
+} catch {
+  /* navigateur sans stockage : on garde la valeur par défaut */
+}
+document.body.classList.toggle('cb', colorblind);
+
 // ---------------------------------------------------------------------------
 // Skin (déterminé par le mode de terrain)
 // ---------------------------------------------------------------------------
@@ -73,7 +82,7 @@ function rebuildBoard() {
     decor.dispose();
   }
   const terrain = engine.getState().terrain;
-  board = buildBoard(terrain, RULES.board.maxHeight, skin);
+  board = buildBoard(terrain, RULES.board.maxHeight, skin, colorblind);
   scene.add(board.group);
   decor = buildDecor(terrain, skin);
   scene.add(decor.group);
@@ -114,6 +123,7 @@ function newGame() {
     scoreTarget: (p) => $(`score-${p}`),
     onSfx: (e) => sound.play(e),
     takeElapsed: () => clock.take(),
+    accessible: colorblind,
   });
   onStateChange();
   updateUrl();
@@ -259,6 +269,7 @@ function onStateChange() {
   const label = TERRAIN_MODES.find((m) => m.id === s.terrain.mode)!.label;
   $('info').textContent = `${label} · seed ${s.terrain.seed}`;
   $('turn-dot').style.background = COLORS[s.current];
+  $('turn-dot').dataset.camp = String(s.current);
   const myTurnVsAi = aiLevel() && s.current !== AI_PLAYER;
   $('turn-text').textContent = s.result
     ? 'Partie terminée'
@@ -463,7 +474,7 @@ function showEnd(s: GameState) {
   $('end-score').innerHTML = ([1, 2] as PlayerId[])
     .map((p) => {
       const ex = s.pieces.filter((x) => x.player === p && x.status === 'exited').length;
-      return `<span><i style="background:${COLORS[p]}"></i>${NAMES[p]} <b>${ex}</b> sortie${ex > 1 ? 's' : ''} · ${s.score[p]} pt${s.score[p] > 1 ? 's' : ''}</span>`;
+      return `<span><i data-camp="${p}" style="background:${COLORS[p]}"></i>${NAMES[p]} <b>${ex}</b> sortie${ex > 1 ? 's' : ''} · ${s.score[p]} pt${s.score[p] > 1 ? 's' : ''}</span>`;
     })
     .join('');
   card.hidden = false;
@@ -595,6 +606,19 @@ async function restart() {
   if (inProgress() && !(await askConfirm('Recommencer ?', 'Même terrain, même seed, mêmes options : la partie en cours sera perdue.', 'Recommencer'))) return;
   newGame();
 }
+const cbEl = $<HTMLInputElement>('colorblind');
+cbEl.checked = colorblind;
+cbEl.onchange = () => {
+  colorblind = cbEl.checked;
+  try {
+    localStorage.setItem('altara.colorblind', colorblind ? '1' : '0');
+  } catch {
+    /* sans importance */
+  }
+  document.body.classList.toggle('cb', colorblind);
+  if (engine) rebuildBoard(); // motif sur les rangées d'arrivée
+  view?.setAccessible(colorblind);
+};
 $('btn-menu').onclick = goMenu;
 $('end-menu').onclick = showHome;
 $('btn-restart').onclick = restart;
