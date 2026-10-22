@@ -161,6 +161,8 @@ Moteur : `GameEngine.getPotentialMoves(pieceId)`.
 
 **Clic droit** (ou Échap) : annule la sélection ou l'inspection en cours, sans jamais jouer de coup.
 
+**Règles** (bouton en bas ou touche **R**) : fiche de règles en sections repliables, générée depuis `src/engine/rules.ts` ; Échap, × ou un clic à côté la ferme, la partie continue derrière.
+
 **Annuler le coup** (bouton en bas, **Ctrl+Z**, ou depuis l'écran de fin) : défait le dernier coup. Contre l'IA, on
 revient à son propre tour (la réponse de l'IA est annulée aussi), même pendant que l'IA réfléchit. Le bouton est grisé
 quand il n'y a rien à annuler ; une défaite au temps ne s'annule pas. La pendule revient à son état d'avant le coup.
