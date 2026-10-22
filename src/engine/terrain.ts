@@ -180,12 +180,12 @@ function shapeFor(mode: TerrainMode, rand: () => number, H: number) {
 
     case 'volcano': {
       // Grand cône centré (le centre est son propre symétrique), cratère léger, pentes vers les bords.
-      const sm = (t: number) => { const x = Math.min(1, Math.max(0, t)); return x * x * (3 - 2 * x); };
       return (u: number, v: number) => {
         const r = Math.hypot(u, v);
-        const cone = (H + 0.6) * sm(1 - r / 0.95);
-        const crater = 1.4 * Math.exp(-(r * r) / 0.012);
-        return 0.3 + cone - crater + 0.9 * (n(u, v, 2.4) - 0.5);
+        // Cône radial large : décroissance quasi linéaire selon la distance au centre, bords encore > 0.
+        const cone = (H + 0.8) * Math.max(0, 1 - r / 1.45);
+        const crater = 1.2 * Math.exp(-(r * r) / 0.012);
+        return 0.2 + cone - crater + 0.6 * (n(u, v, 2.4) - 0.5);
       };
     }
 
