@@ -21,7 +21,7 @@ export interface PieceStyle {
 export const DEFAULT_STYLE_ID = 'current';
 
 export const PIECE_STYLES: PieceStyle[] = [
-  { id: 'current', name: 'Actuel', description: 'Design en place dans le jeu.', build: buildPieceMesh },
+  { id: 'current', name: 'Actuel', description: "Design d'origine, en place dans le jeu.", build: buildPieceMesh },
   { id: 'glass', name: 'Flèches de verre', description: 'Fûts tordus à facettes, cristaux translucides.', build: buildGlassPiece },
   { id: 'organic', name: 'Sculpture organique', description: 'Profils en S, gorge fine, lames recourbées.', build: buildOrganicPiece },
   { id: 'celestial', name: 'Architecture céleste', description: 'Obélisques à gradins, halo flottant, aiguilles.', build: buildCelestialPiece },

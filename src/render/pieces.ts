@@ -69,6 +69,25 @@ function buildRing(r: number): THREE.BufferGeometry {
   return new THREE.LatheGeometry(pts, 24);
 }
 
+/**
+ * Fût : profil concave (forme de balustre).
+ * rayon(t) = taille + (bas − taille)·(1−t)^a + (haut − taille)·t^b
+ * Les exposants donnent une courbe qui se resserre vite au-dessus de la base
+ * puis s'ouvre doucement vers le col. Peu de segments radiaux : facettes low-poly.
+ */
+function buildShaft(height: number, bottom: number, waist: number, top: number): THREE.BufferGeometry {
+  const pts: THREE.Vector2[] = [new THREE.Vector2(0, 0)];
+  const steps = 14;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const r = waist + (bottom - waist) * (1 - t) ** 2.4 + (top - waist) * t ** 2.2;
+    pts.push(new THREE.Vector2(r, t * height));
+  }
+  pts.push(new THREE.Vector2(0, height));
+  return new THREE.LatheGeometry(pts, 12);
+}
+
+/** Col : petit disque débordant, biseauté dessus et dessous. */
 function buildCollar(r: number): THREE.BufferGeometry {
   const pts = [
     new THREE.Vector2(0, 0),
@@ -98,84 +117,67 @@ function buildHorn(radius: number, height: number, bend: number, radial = 6): TH
   return g;
 }
 
-/** Matériau double face (voile, fanion) : visible des deux côtés. */
-function flatMaterial(color: THREE.Color): THREE.MeshStandardMaterial {
-  const m = material(color);
-  m.side = THREE.DoubleSide;
-  return m;
-}
-
-/** Fût tronconique à `sides` facettes, de r0 (bas) à r1 (haut). */
-function buildColumn(height: number, r0: number, r1: number, sides: number): THREE.BufferGeometry {
-  const g = new THREE.CylinderGeometry(r1, r0, height, sides, 1);
-  g.translate(0, height / 2, 0);
-  return g;
-}
-
-/** Triangle plat (voile) défini par 3 points, normales plates. */
-function buildTriangle(a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3): THREE.BufferGeometry {
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute([...a.toArray(), ...b.toArray(), ...c.toArray()], 3));
-  g.computeVertexNormals();
-  return g;
-}
-
-/**
- * EXPLORATEUR : élancé et léger. Une unique flèche (Force 1) et un fanion
- * triangulaire qui flotte vers l'arrière.
- */
-function crownExplorer(mat: THREE.Material, matFlag: THREE.Material, h: number): THREE.Object3D {
-  const group = new THREE.Group();
+/** Sommet de l'Explorateur : une flèche unique, effilée (fer en losange). */
+function crownExplorer(mat: THREE.Material, h: number): THREE.Object3D {
   const pts = [
     new THREE.Vector2(0, 0),
-    new THREE.Vector2(0.05, 0),
-    new THREE.Vector2(0.025, h * 0.25),
-    new THREE.Vector2(0.095, h * 0.45), // épaulement du fer
-    new THREE.Vector2(0.03, h * 0.6),
-    new THREE.Vector2(0, h), // pointe unique
+    new THREE.Vector2(0.055, 0),
+    new THREE.Vector2(0.03, h * 0.22), // tige
+    new THREE.Vector2(0.105, h * 0.42), // épaulement du fer
+    new THREE.Vector2(0.035, h * 0.56), // rétrécissement
+    new THREE.Vector2(0, h), // pointe
   ];
-  group.add(new THREE.Mesh(new THREE.LatheGeometry(pts, 4, Math.PI / 4), mat));
-  // Fanion sous le fer, flottant vers l'arrière (-Z) et sur le côté : lisible de dessus.
-  group.add(
-    new THREE.Mesh(
-      buildTriangle(
-        new THREE.Vector3(0.02, h * 0.8, 0),
-        new THREE.Vector3(0.02, h * 0.3, 0),
-        new THREE.Vector3(0.26, h * 0.58, -0.22),
-      ),
-      matFlag,
-    ),
-  );
-  return group;
+  // 4 segments : fer de flèche à facettes, lisible de côté comme de dessus.
+  const g = new THREE.LatheGeometry(pts, 4, Math.PI / 4);
+  return new THREE.Mesh(g, mat);
 }
 
-/** AVANT-GARDE : deux lames/cornes écartées, couchées vers l'avant (+Z), sur un cimier en coin. */
+/** Sommet de l'Avant-garde : deux cornes inclinées vers l'avant, comme un cimier. */
 function crownVanguard(mat: THREE.Material, h: number): THREE.Object3D {
   const group = new THREE.Group();
-  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 0.07, 4).rotateY(Math.PI / 4), mat);
-  cap.position.y = 0.035;
+  // Petit chapeau qui porte les cornes
+  const cap = new THREE.Mesh(
+    new THREE.LatheGeometry(
+      [new THREE.Vector2(0, 0), new THREE.Vector2(0.11, 0), new THREE.Vector2(0.09, 0.06), new THREE.Vector2(0, 0.08)],
+      10,
+    ),
+    mat,
+  );
   group.add(cap);
   for (const side of [-1, 1]) {
-    const horn = new THREE.Mesh(buildHorn(0.06, h * 1.1, 0.12, 4), mat);
-    horn.position.set(side * 0.08, 0.05, 0.02);
-    horn.rotation.z = -side * 0.35; // écartement latéral
-    horn.rotation.x = 0.8; // couchées vers l'avant
+    const horn = new THREE.Mesh(buildHorn(0.058, h, 0.16), mat);
+    horn.position.set(side * 0.06, 0.04, -0.03);
+    horn.rotation.z = -side * 0.38; // écartement latéral
+    horn.rotation.x = 0.22; // inclinaison vers l'avant
     group.add(horn);
   }
   return group;
 }
 
-/** SENTINELLE : tour de guet. Tambour large à créneaux, trois merlons épais (Force 3), un face à l'avant. */
+/** Sommet de la Sentinelle : couronne à trois pointes (une face à l'avant). */
 function crownSentinel(mat: THREE.Material, h: number): THREE.Object3D {
   const group = new THREE.Group();
-  group.add(new THREE.Mesh(buildColumn(h * 0.3, 0.2, 0.235, 8), mat));
-  const mh = h * 0.7;
+  const band = new THREE.Mesh(
+    new THREE.LatheGeometry(
+      [
+        new THREE.Vector2(0, 0),
+        new THREE.Vector2(0.12, 0),
+        new THREE.Vector2(0.15, h * 0.3),
+        new THREE.Vector2(0.115, h * 0.34),
+        new THREE.Vector2(0, h * 0.2), // creux au centre de la couronne
+      ],
+      12,
+    ),
+    mat,
+  );
+  group.add(band);
   for (let k = 0; k < 3; k++) {
     const a = (k / 3) * Math.PI * 2; // a = 0 → vers l'avant (+Z)
-    const merlon = new THREE.Mesh(new THREE.BoxGeometry(0.15, mh, 0.1), mat);
-    merlon.rotation.y = a;
-    merlon.position.set(Math.sin(a) * 0.17, h * 0.3 + mh / 2, Math.cos(a) * 0.17);
-    group.add(merlon);
+    const spike = new THREE.Mesh(buildHorn(0.065, h * 0.95, 0.05, 4), mat);
+    // La courbure de buildHorn pousse vers +Z local : on l'oriente vers l'extérieur.
+    spike.rotation.y = a;
+    spike.position.set(Math.sin(a) * 0.095, h * 0.2, Math.cos(a) * 0.095);
+    group.add(spike);
   }
   return group;
 }
@@ -191,6 +193,7 @@ export function buildPieceMesh({ type, player }: PieceMeshOptions): THREE.Group 
   const { height, baseRadius, waist } = def.visual;
   const camp = PALETTE.camp[player];
 
+  // Légère variation de luminosité entre les parties (±8 % max).
   const matBase = material(shade(camp, -0.08));
   const matRing = material(shade(camp, 0.08));
   const matShaft = material(shade(camp, 0));
@@ -198,10 +201,9 @@ export function buildPieceMesh({ type, player }: PieceMeshOptions): THREE.Group 
 
   const group = new THREE.Group();
   group.name = `piece-${type}-${player}`;
-  // Haut de la pièce : s'incline vers l'avant pour l'Avant-garde (le socle reste droit).
-  const upper = new THREE.Group();
+  let y = 0;
 
-  const addTo = (parent: THREE.Object3D, geo: THREE.BufferGeometry | THREE.Object3D, mat: THREE.Material | undefined, y: number) => {
+  const add = (geo: THREE.BufferGeometry | THREE.Object3D, mat?: THREE.Material) => {
     const obj = geo instanceof THREE.Object3D ? geo : new THREE.Mesh(geo, mat);
     obj.position.y += y;
     obj.traverse((o) => {
@@ -210,39 +212,33 @@ export function buildPieceMesh({ type, player }: PieceMeshOptions): THREE.Group 
         o.receiveShadow = true;
       }
     });
-    parent.add(obj);
+    group.add(obj);
     return obj;
   };
 
-  addTo(group, buildBase(def.movement, baseRadius), matBase, 0);
-  const ringR = baseRadius * (type === 'sentinel' ? 0.8 : 0.68);
-  addTo(group, buildRing(ringR), matRing, BASE_H);
-  group.add(upper);
-  upper.position.y = BASE_H + RING_H;
+  add(buildBase(def.movement, baseRadius), matBase);
+  y += BASE_H;
+
+  const ringR = baseRadius * 0.68;
+  add(buildRing(ringR), matRing);
+  y += RING_H;
 
   const crownH = CROWN_H[type];
   const shaftH = height - BASE_H - RING_H - COLLAR_H - crownH;
-  const top = shaftH + COLLAR_H;
+  const shaftTop = waist * 1.1 + 0.02;
+  add(buildShaft(shaftH, ringR * 0.8, waist, shaftTop), matShaft);
+  y += shaftH;
 
-  if (type === 'explorer') {
-    addTo(upper, buildColumn(shaftH, ringR * 0.5, waist * 0.7, 8), matShaft, 0);
-    addTo(upper, buildCollar(waist * 1.5), matRing, shaftH);
-    addTo(upper, crownExplorer(matCrown, flatMaterial(shade(camp, 0.18)), crownH), undefined, top);
-  } else if (type === 'vanguard') {
-    upper.rotation.x = 0.13; // légère inclinaison vers l'avant (+Z)
-    addTo(upper, buildColumn(shaftH, ringR * 0.8, waist * 1.1, 8), matShaft, 0);
-    // Proue triangulaire sur la face avant : coin dont l'arête pointe vers +Z.
-    const prow = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.17, shaftH * 0.85, 3), matRing);
-    prow.scale.set(0.7, 1, 1.15);
-    prow.position.set(0, shaftH * 0.46, 0.085);
-    addTo(upper, prow, undefined, 0);
-    addTo(upper, buildCollar(waist * 1.7), matRing, shaftH);
-    addTo(upper, crownVanguard(matCrown, crownH), undefined, top);
-  } else {
-    addTo(upper, buildColumn(shaftH, ringR * 0.95, 0.19, 8), matShaft, 0);
-    addTo(upper, buildCollar(0.26), matRing, shaftH);
-    addTo(upper, crownSentinel(matCrown, crownH), undefined, top);
-  }
+  add(buildCollar(shaftTop * 1.35), matRing);
+  y += COLLAR_H;
+
+  const crown =
+    type === 'explorer'
+      ? crownExplorer(matCrown, crownH)
+      : type === 'vanguard'
+        ? crownVanguard(matCrown, crownH)
+        : crownSentinel(matCrown, crownH);
+  add(crown);
 
   group.userData = { type, player, height };
   return group;

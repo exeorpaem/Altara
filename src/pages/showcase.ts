@@ -1,10 +1,9 @@
 // Page /showcase : les 3 pièces des 2 camps, avec M et N, pour chaque style de pièces.
-// Sélecteur de style (Actuel, propositions, Ancien) et mode « Tout comparer » (grille :
+// Sélecteur de style (Actuel, propositions) et mode « Tout comparer » (grille :
 // une rangée par style). Paramètres d'URL : ?style=<id>|all · ?view=top · ?spin=0 · ?zoom=<k>.
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { PIECES, PIECE_TYPES, type PlayerId } from '../engine/rules';
-import { buildLegacyPieceMesh } from '../render/pieces-legacy';
 import { DEFAULT_STYLE_ID, PIECE_STYLES, type PieceBuilder } from '../render/pieces-styles';
 import { createSceneKit } from '../render/scene';
 import { PALETTE } from '../render/palette';
@@ -17,7 +16,6 @@ const params = new URLSearchParams(location.search);
 // Styles montrés : ceux du jeu (registre) + l'ancien design, pour mémoire.
 const STYLES: { id: string; name: string; build: PieceBuilder }[] = [
   ...PIECE_STYLES,
-  { id: 'legacy', name: 'Ancien', build: buildLegacyPieceMesh },
 ];
 
 // Plateau d'exposition : disque low-poly crème (agrandi en mode grille).
@@ -76,7 +74,7 @@ STYLES.forEach((style, si) => {
 const sel = document.getElementById('sel-style') as HTMLSelectElement;
 for (const s of STYLES) sel.add(new Option(s.name, s.id));
 sel.add(new Option('Tout comparer', 'all'));
-let current = params.get('style') ?? (params.get('design') === 'old' ? 'legacy' : DEFAULT_STYLE_ID);
+let current = params.get('style') ?? DEFAULT_STYLE_ID;
 if (!STYLES.some((s) => s.id === current) && current !== 'all') current = DEFAULT_STYLE_ID;
 
 const SIDE = new THREE.Vector3(0, 3.2, 7.6);
