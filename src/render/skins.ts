@@ -11,6 +11,8 @@ export interface Skin {
   /** Teinte des creux (niveaux 0 et 1) et force du mélange */
   hollow: string;
   hollowMix: number;
+  /** Optionnel : teinte du niveau 1 (eau peu profonde) à la place du mélange sable/creux */
+  shallow?: string;
   /** Liseré entre deux niveaux */
   line: string;
   /** Dalle de l'île et roche du socle */
@@ -125,8 +127,9 @@ export const SKINS: Skin[] = [
     name: 'Lagon',
     low: '#EAD9AE',
     high: '#FFF8E4',
-    hollow: '#58B0E8',
+    hollow: '#34566F', // ardoise marine, nettement distincte du turquoise des pièces Lagon
     hollowMix: 1,
+    shallow: '#5A7C92',
     line: '#A8946A',
     slab: '#E6D8B8',
     rock: '#B8A78A',

@@ -678,9 +678,29 @@ function decorateModeExtras(around: Acc, glow: Acc, sky: Acc, terrain: Terrain, 
           glow.add('box', [gx, y - 0.14, gz], [0.03, 0.2, 0.14], ry, pal.lavaGlow);
         }
       }
+      // Rigoles bien visibles côté caméra (+Z) : sur la tranche de la dalle et en bordure (hors cases jouables).
+      for (let k = 0; k < 6; k++) {
+        const x0 = -4.2 + k * 1.7 + (rnd() - 0.5) * 0.5, ph = rnd() * 6;
+        for (let y = 0.02; y > -0.66; y -= 0.12) {
+          const x = x0 + Math.sin(y * 5 + ph) * 0.06;
+          around.add('box', [x, y - 0.1, 5.6], [0.26, 0.16, 0.06], 0, pal.lava);
+          glow.add('box', [x, y - 0.1, 5.65], [0.17, 0.16, 0.03], 0, pal.lavaGlow);
+        }
+      }
+      // Rigole continue le long du bord avant et des bords latéraux (bande libre de la dalle), bien lumineuse.
+      for (let x = -5.4; x <= 5.4; x += 0.3) {
+        const z = 5.28 + Math.sin(x * 1.3) * 0.06;
+        around.add('box', [x, 0.0, z], [0.36, 0.04, 0.2], 0, pal.lava);
+        glow.add('box', [x, 0.03, z], [0.34, 0.03, 0.11], 0, pal.lavaGlow);
+      }
+      for (let k = 0; k < 7; k++) { // braises sur la bande libre avant (z 5,05–5,5), entre les rochers
+        const x = -4.5 + k * 1.5 + rnd() * 0.5, z = 5.2 + rnd() * 0.25;
+        glow.add('box', [x, 0.02, z], [0.22, 0.02, 0.07], rnd() * 0.6 - 0.3, pal.lavaGlow);
+      }
       const slope = Math.atan2(7.2 * 0.95 / 6.2, 1); // inclinaison du cône par rapport à la verticale
-      for (let k = 0; k < 9; k++) {
-        const a = (k / 9) * Math.PI * 2 + rnd() * 0.3;
+      for (let k = 0; k < 14; k++) {
+        // 9 coulées réparties + 5 tournées vers la caméra (+Z, angle ≈ π/2) pour les flancs visibles
+        const a = k < 9 ? (k / 9) * Math.PI * 2 + rnd() * 0.3 : Math.PI / 2 + (k - 11.5) * 0.4 + rnd() * 0.15;
         const phase = rnd() * 6, len = 4.2 + rnd() * 1.2;
         const ca = Math.cos(a), sa = Math.sin(a);
         for (let d = 0.15; d < len; d += 0.2) {
@@ -769,6 +789,12 @@ function decorateIslets(acc: Acc, terrain: Terrain, pal: DecorPalette, skin: Ski
     const R = 0.7 + rnd() * 1.5;
     acc.add('cyl7', [x, y - 0.25, z], [R, 0.25, R], rnd() * 6, pal.islet);
     acc.add('cone6', [x, y - 0.25, z], [R * 0.95, R * 1.7, R * 0.95], Math.PI, rock, Math.PI);
+    if (terrain.mode === 'volcano') {
+      for (let e = 0; e < 3; e++) { // braises sur l'îlot
+        const ea = rnd() * Math.PI * 2, er = rnd() * R * 0.7;
+        acc.add('box', [x + Math.cos(ea) * er, y + 0.02, z + Math.sin(ea) * er], [0.2, 0.025, 0.07], ea, pal.lavaGlow);
+      }
+    }
     const n = 1 + Math.floor(rnd() * 4);
     for (let i = 0; i < n; i++) {
       const aa = rnd() * Math.PI * 2;

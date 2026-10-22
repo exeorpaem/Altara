@@ -112,4 +112,17 @@ describe('palettes par mode', () => {
       for (const v of Object.values(pal)) for (const c of Array.isArray(v) ? v : [v]) expect(clash(c), `${m.id} décor`).toBe(false);
     }
   });
+
+  it('les creux du lagon restent loin du turquoise des pièces Lagon', () => {
+    const sk = skinForMode('archipelago');
+    const campL = new THREE.Color(PALETTE.camp[2]);
+    for (const c of [sk.hollow, sk.shallow!]) {
+      const col = new THREE.Color(c);
+      const d = Math.hypot(col.r - campL.r, col.g - campL.g, col.b - campL.b);
+      expect(d, c).toBeGreaterThan(0.35);
+      const h = { h: 0, s: 0, l: 0 };
+      col.getHSL(h);
+      expect(h.l).toBeLessThan(0.5);
+    }
+  });
 });
