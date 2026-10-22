@@ -92,8 +92,8 @@ export function decorPalette(skin: Skin, mode: TerrainMode): DecorPalette {
     leaf: mix(skin.low, '#76B26C', 0.6),
     leafDark: mix(skin.line, '#4F8A5A', 0.55),
     trunk: mix(skin.rock, '#8C6B52', 0.5),
-    stone: mix(skin.rock, '#6F6A66', 0.35),
-    stoneDark: mix(skin.rock, skin.line, 0.7),
+    stone: mix(skin.rock, skin.high, 0.1),
+    stoneDark: mix(skin.rock, skin.line, 0.35),
     snow: mix(skin.high, '#FFFFFF', 0.75),
     sand: mix(skin.high, '#FFF3CF', 0.6),
     sandDark: mix(skin.low, skin.line, 0.6),
@@ -101,7 +101,7 @@ export function decorPalette(skin: Skin, mode: TerrainMode): DecorPalette {
     heather: mix(skin.high, '#8E6BC0', 0.8),
     bone: mix(skin.high, '#F3ECDD', 0.7),
     water: mix(skin.hollow, '#4F9AD8', 0.7),
-    crack: mix(skin.line, '#2E2C2A', 0.6),
+    crack: mix(skin.line, '#4A4844', 0.4),
     frost: mix('#FFFFFF', '#DCEEFF', 0.4),
     moss: mix(skin.hollow, '#3F8456', 0.75),
     cap: mix(skin.high, '#B8895A', 0.7),
@@ -246,8 +246,8 @@ const RECIPES: Record<TerrainMode, Recipe> = {
   },
 };
 
-/** Emprise au sol agrandie (×1,4) sans toucher à la hauteur : lecture plus nette depuis la caméra. */
-const FOOT = 1.4;
+/** Emprise au sol agrandie (×1,1) sans toucher à la hauteur : lecture plus nette depuis la caméra. */
+const FOOT = 1.1;
 function surfaceDetail(acc0: Acc, kind: Detail, x: number, y: number, z: number, rnd: () => number, pal: DecorPalette) {
   const acc = {
     add: (n: TplName, p: [number, number, number], sc: [number, number, number], ry: number, c: THREE.Color, rx = 0, rz = 0) =>
@@ -323,7 +323,10 @@ function decorateCells(acc: Acc, terrain: Terrain, pal: DecorPalette) {
       const { kinds, n } = recipe[cls];
       const { x: cx, z: cz } = cellCenter(size, r, c);
       const y = topY(heights[r][c]);
-      const count = Math.round((n[0] + Math.floor(rnd() * (n[1] - n[0] + 1))) * 2.5);
+      // Plateau lisible : 0 ou 1 petit détail par case (un peu plus sur falaises/cuvettes, qui racontent le relief).
+      const p1 = cls === 'cliff' || cls === 'basin' || cls === 'summit' ? 0.85 : 0.5;
+      const count = rnd() < p1 ? 1 : 0;
+      void n;
       for (let i = 0; i < count; i++) {
         let kind = kinds[Math.floor(rnd() * kinds.length)];
         if (mode === 'mountains' && heights[r][c] >= SNOW_LINE && rnd() < 0.5) kind = 'frost';
@@ -434,7 +437,7 @@ function decorateRim(acc: Acc, terrain: Terrain, pal: DecorPalette) {
   const rnd = mulberry32(hashSeed(`${terrain.seed}:rim`));
   const half = terrain.size / 2; // 5
   const list = PROPS[terrain.mode];
-  const perSide = 14;
+  const perSide = 26;
   for (let side = 0; side < 4; side++) {
     for (let i = 0; i < perSide; i++) {
       const u = ((i + 0.2 + rnd() * 0.6) / perSide) * (half * 2 + 1) - (half + 0.5);
@@ -444,9 +447,9 @@ function decorateRim(acc: Acc, terrain: Terrain, pal: DecorPalette) {
       if (side === 2) { x = u; z = off; }
       if (side === 3) { x = -off; z = u; }
       // Côté caméra (+Z) : éléments plus petits pour ne jamais masquer la rangée de départ.
-      const front = side === 2 ? 0.55 : 1;
+      const front = side === 2 ? 0.6 : 1.25;
       const kind = pickWeighted(list, rnd);
-      prop(acc, kind, x, 0, z, (0.7 + rnd() * 0.6) * front, rnd, pal);
+      prop(acc, kind, x, 0, z, (0.8 + rnd() * 0.7) * front, rnd, pal);
     }
   }
 }
@@ -456,7 +459,7 @@ function decorateUnderside(acc: Acc, terrain: Terrain, pal: DecorPalette, skin: 
   const rnd = mulberry32(hashSeed(`${terrain.seed}:under`));
   const rock = mix(skin.rock, pal.stoneDark, 0.3);
   const rockLight = mix(skin.rock, skin.high, 0.2);
-  for (let i = 0; i < 46; i++) {
+  for (let i = 0; i < 80; i++) {
     const a = rnd() * Math.PI * 2;
     const d = 0.3 + rnd() * 4.2; // profondeur sous la dalle
     const R = 7.2 * (1 - (d + 0.5) / 6.2) * 0.95 + 0.1; // rayon du cône à cette profondeur
@@ -465,7 +468,7 @@ function decorateUnderside(acc: Acc, terrain: Terrain, pal: DecorPalette, skin: 
     // Pointe vers le bas : on retourne le cône (rx = π), son origine devient le sommet de la base.
     acc.add('cone5', [Math.cos(a) * R, -0.5 - d, Math.sin(a) * R], [w, len, w], rnd() * 6, i % 3 ? rock : rockLight, Math.PI);
   }
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 18; i++) {
     const a = rnd() * Math.PI * 2;
     const d = 0.5 + rnd() * 3;
     const R = 7.2 * (1 - (d + 0.5) / 6.2) * 0.95 + 0.1;
@@ -479,18 +482,18 @@ function decorateIslets(acc: Acc, terrain: Terrain, pal: DecorPalette, skin: Ski
   const rnd = mulberry32(hashSeed(`${terrain.seed}:islets`));
   const list = PROPS[terrain.mode];
   const rock = mix(skin.rock, skin.high, 0.1);
-  const count = 6;
+  const count = 11;
   for (let k = 0; k < count; k++) {
     // Répartis autour, jamais derrière le plateau côté caméra (+Z) trop près.
     const a = (k / count) * Math.PI * 2 + 0.4 + rnd() * 0.5;
-    const dist = 12 + rnd() * 7;
+    const dist = 11 + rnd() * 10;
     const x = Math.cos(a) * dist;
     const z = Math.sin(a) * dist;
     const y = -3.5 + rnd() * 4.5;
-    const R = 0.9 + rnd() * 1.1;
+    const R = 0.7 + rnd() * 1.5;
     acc.add('cyl7', [x, y - 0.25, z], [R, 0.25, R], rnd() * 6, pal.islet);
     acc.add('cone6', [x, y - 0.25, z], [R * 0.95, R * 1.7, R * 0.95], Math.PI, rock, Math.PI);
-    const n = 1 + Math.floor(rnd() * 3);
+    const n = 1 + Math.floor(rnd() * 4);
     for (let i = 0; i < n; i++) {
       const aa = rnd() * Math.PI * 2;
       const rr = rnd() * R * 0.5;
@@ -508,11 +511,12 @@ function decorateTranslucent(acc: Acc, terrain: Terrain, pal: DecorPalette) {
   // Cascade (modes à eau) : chute depuis le bord de la dalle, puis coulée le long du cône rocheux
   // (décalée vers l'extérieur pour ne pas s'enfouir dans la roche), avec des embruns au pied.
   if (terrain.mode === 'valleys' || terrain.mode === 'highlands') {
-    const z = 1.2;
-    acc.add('box', [5.66, -0.5, z], [0.1, 0.55, 0.7], 0, pal.water);
-    acc.add('box', [7.35, -3.1, z], [0.16, 2.6, 0.7], 0, pal.water, 0, 0.62);
-    acc.add('ico', [5.9, -0.45, z], [0.35, 0.12, 0.45], 0, pal.frost);
-    acc.add('ico', [5.5, -3.5, z], [0.4, 0.2, 0.5], 0, pal.frost);
+    const z = 1.5; // côté gauche : visible dans la vue par défaut
+    // Nappe qui déborde du bord de la dalle, puis chute verticale en dehors du rocher (x = −7,6).
+    acc.add('box', [-6.6, -0.42, z], [2.1, 0.07, 1.0], 0, pal.water);
+    acc.add('box', [-7.6, -3.0, z], [0.14, 2.6, 1.0], 0, pal.water);
+    acc.add('ico', [-7.4, -0.4, z], [0.45, 0.14, 0.6], 0, pal.frost);
+    acc.add('ico', [-7.4, -3.1, z], [0.5, 0.25, 0.7], 0, pal.frost);
   }
   // Nuages d'appoint : amas de 3 à 4 volumes écrasés, loin du plateau.
   for (let k = 0; k < 5; k++) {
