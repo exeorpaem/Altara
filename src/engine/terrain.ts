@@ -12,7 +12,7 @@
 import { RULES } from './rules';
 import { hashSeed, mulberry32 } from './random';
 
-export type TerrainMode = 'random' | 'mountains' | 'valleys' | 'highlands' | 'woods' | 'desert';
+export type TerrainMode = 'random' | 'mountains' | 'valleys' | 'highlands' | 'woods' | 'desert' | 'volcano' | 'archipelago' | 'marsh' | 'canyon';
 
 export const TERRAIN_MODES: { id: TerrainMode; label: string }[] = [
   { id: 'random', label: 'Aléatoire' },
@@ -21,6 +21,10 @@ export const TERRAIN_MODES: { id: TerrainMode; label: string }[] = [
   { id: 'highlands', label: 'Hautes terres' },
   { id: 'woods', label: 'Bois' },
   { id: 'desert', label: 'Désert' },
+  { id: 'volcano', label: 'Volcan' },
+  { id: 'archipelago', label: 'Archipel' },
+  { id: 'marsh', label: 'Marais' },
+  { id: 'canyon', label: 'Canyon' },
 ];
 
 export interface Terrain {
@@ -172,6 +176,49 @@ function shapeFor(mode: TerrainMode, rand: () => number, H: number) {
       const peak = { x: between(-0.6, 0.6), y: between(-0.5, 0.5), s: between(0.03, 0.05) };
       return (u: number, v: number) =>
         Math.max(1.2 * contrast(n(u, v, 1.5), 1.6), hasPeak ? H * bump(u, v, peak) : 0);
+    }
+
+    case 'volcano': {
+      // Grand cône centré (le centre est son propre symétrique), cratère léger, pentes vers les bords.
+      const sm = (t: number) => { const x = Math.min(1, Math.max(0, t)); return x * x * (3 - 2 * x); };
+      return (u: number, v: number) => {
+        const r = Math.hypot(u, v);
+        const cone = (H + 0.6) * sm(1 - r / 0.95);
+        const crater = 1.4 * Math.exp(-(r * r) / 0.012);
+        return 0.3 + cone - crater + 0.9 * (n(u, v, 2.4) - 0.5);
+      };
+    }
+
+    case 'archipelago': {
+      // 2 paires de plateaux (la symétrie double chaque bosse), séparés par des creux profonds.
+      const isles = Array.from({ length: 2 }, (_, i) => ({
+        x: between(0.25, 0.6) * (i ? -1 : 1),
+        y: between(0.2, 0.55),
+        s: between(0.1, 0.17),
+      }));
+      return (u: number, v: number) => {
+        let m = 0;
+        for (const f of isles) m = Math.max(m, bump(u, v, f));
+        const plateau = Math.min(1, Math.max(0, (m - 0.3) * 3.5)); // flanc raide, sommet plat
+        return 0.2 + (2.8 + 2.0 * n(u, v, 2)) * plateau + 0.8 * (n(u, v, 3) - 0.5) * (1 - plateau);
+      };
+    }
+
+    case 'marsh':
+      // Quasi plat (1 à 3), parsemé de nombreuses petites cuvettes.
+      return (u: number, v: number) => 1 + 2 * contrast(n(u, v, 4.2), 2.2);
+
+    case 'canyon': {
+      // Couloir central entre les deux camps (axe des rangées), légèrement sinueux ; deux falaises.
+      // Décalage impair en v → la forme reste symétrique par rotation de 180°.
+      const amp = between(0.05, 0.12);
+      const k = between(1.5, 2.5);
+      const sm = (t: number) => { const x = Math.min(1, Math.max(0, t)); return x * x * (3 - 2 * x); };
+      return (u: number, v: number) => {
+        const d = Math.abs(u - amp * Math.sin(k * v));
+        const wall = sm((d - 0.2) / 0.28);
+        return 0.4 + 0.5 * n(u, v, 3) + wall * (3.6 + 1.2 * n(u, v, 2));
+      };
     }
   }
 }

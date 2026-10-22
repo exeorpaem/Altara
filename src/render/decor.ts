@@ -81,12 +81,14 @@ export interface DecorPalette {
   stone: THREE.Color; stoneDark: THREE.Color; snow: THREE.Color; sand: THREE.Color; sandDark: THREE.Color;
   cactus: THREE.Color; heather: THREE.Color; bone: THREE.Color; water: THREE.Color; crack: THREE.Color;
   frost: THREE.Color; moss: THREE.Color; cap: THREE.Color; flowers: THREE.Color[]; cloud: THREE.Color;
-  islet: THREE.Color;
+  islet: THREE.Color; lava: THREE.Color; lavaGlow: THREE.Color; ash: THREE.Color; blackRock: THREE.Color;
+  strata: THREE.Color[]; shrub: THREE.Color; reed: THREE.Color; lily: THREE.Color; mist: THREE.Color;
+  glow: THREE.Color; ice: THREE.Color;
 }
 
 /** Palette du décor : chaque teinte « cible » est mélangée au skin pour rester cohérente avec lui. */
 export function decorPalette(skin: Skin, mode: TerrainMode): DecorPalette {
-  const dry = mode === 'desert';
+  const dry = mode === 'desert' || mode === 'canyon';
   const p: DecorPalette = {
     grass: mix(skin.hollow, '#4E9A4A', 0.7),
     leaf: mix(skin.low, '#76B26C', 0.6),
@@ -107,6 +109,17 @@ export function decorPalette(skin: Skin, mode: TerrainMode): DecorPalette {
     cap: mix(skin.high, '#B8895A', 0.7),
     flowers: [mix(skin.high, '#F2CB2E', 0.85), mix(skin.high, '#8E74E0', 0.8), new THREE.Color('#FFFFFF')],
     cloud: new THREE.Color(skin.cloud),
+    lava: mix(skin.line, '#E8722E', 0.8),
+    lavaGlow: mix(skin.high, '#FFB04A', 0.85),
+    ash: mix(skin.rock, '#2F2D30', 0.7),
+    blackRock: mix(skin.rock, '#3A373B', 0.75),
+    strata: [mix(skin.rock, '#C9946A', 0.5), mix(skin.low, '#A9714F', 0.5), mix(skin.high, '#E2BC8C', 0.55)],
+    shrub: mix(skin.low, '#9C9A5A', 0.6),
+    reed: mix(skin.hollow, '#7C9A56', 0.65),
+    lily: mix(skin.hollow, '#5E9A62', 0.7),
+    mist: mix(skin.cloud, '#FFFFFF', 0.3),
+    glow: mix(skin.high, '#FFE3A0', 0.85),
+    ice: mix('#FFFFFF', '#BFE3F4', 0.45),
     islet: dry ? mix(skin.low, '#E6CF9C', 0.4) : mix(skin.low, '#86BC72', 0.5),
   };
   for (const k of Object.keys(p) as (keyof DecorPalette)[]) {
@@ -151,6 +164,8 @@ class Acc {
   pos: number[] = [];
   col: number[] = [];
   tris = 0;
+  /** Maillage lumineux (non éclairé) associé : lave, lanternes, lucioles. */
+  glow?: Acc;
   private m = new THREE.Matrix4();
   private q = new THREE.Quaternion();
   private e = new THREE.Euler();
@@ -190,12 +205,24 @@ class Acc {
 // 4. Détails BAS sur les cases jouables (≤ ~0,15 unité, centre dégagé)
 // ---------------------------------------------------------------------------
 
-type Detail = 'grass' | 'pebble' | 'crack' | 'flower' | 'ripple' | 'frost' | 'moss' | 'puddle' | 'mushroom' | 'heather' | 'bone' | 'dry';
+type Detail = 'grass' | 'pebble' | 'crack' | 'flower' | 'ripple' | 'frost' | 'moss' | 'puddle' | 'mushroom' | 'heather' | 'bone' | 'dry' | 'ash' | 'ember' | 'shell' | 'weed';
 
 type Recipe = Record<CellClass, { kinds: Detail[]; n: [number, number] }>;
 
 /** Recettes : quels détails, et combien, selon le mode et la classe de case. */
+/** Densité des détails de cases selon le mode (1 = normal) : volcan, archipel, marais, canyon restent très épurés. */
+const SPARSE: Partial<Record<TerrainMode, number>> = { volcano: 0.3, archipelago: 0.25, marsh: 0.3, canyon: 0.3 };
+
+const uniform = (kinds: Detail[]): Recipe => {
+  const e = { kinds, n: [1, 2] as [number, number] };
+  return { flat: e, slope: e, plateau: e, cliff: e, summit: e, basin: e };
+};
+
 const RECIPES: Record<TerrainMode, Recipe> = {
+  volcano: uniform(['ash', 'ash', 'ember', 'pebble']),
+  archipelago: uniform(['shell', 'weed', 'shell', 'pebble']),
+  marsh: uniform(['puddle', 'moss', 'puddle', 'weed']),
+  canyon: uniform(['pebble', 'pebble', 'pebble', 'dry']),
   woods: {
     flat: { kinds: ['grass', 'moss', 'mushroom'], n: [1, 3] },
     slope: { kinds: ['grass', 'pebble', 'moss'], n: [1, 3] },
@@ -301,6 +328,19 @@ function surfaceDetail(acc0: Acc, kind: Detail, x: number, y: number, z: number,
       acc.add('box', [x, y0, z], [0.14, 0.02, 0.025], ry, pal.bone);
       acc.add('box', [x, y0, z], [0.1, 0.02, 0.022], ry + 0.9, pal.bone);
       break;
+    case 'ash':
+      acc.add('cyl6', [x, y0, z], [0.1 + rnd() * 0.05, 0.01, 0.08], ry, pal.ash);
+      acc.add('cyl6', [x + 0.05, y0, z + 0.03], [0.05, 0.016, 0.04], ry, pal.blackRock);
+      break;
+    case 'ember': // fissure rougeoyante discrète (non émissive : simple teinte chaude)
+      acc.add('box', [x, y0, z], [0.18 + rnd() * 0.08, 0.006, 0.012], ry, pal.lava);
+      break;
+    case 'shell':
+      acc.add('cone6', [x, y0, z], [0.045, 0.03, 0.045], ry, pal.bone, 1.2, 0);
+      break;
+    case 'weed':
+      for (let i = 0; i < 2; i++) acc.add('cone5', [x + i * 0.03, y0, z], [0.012, 0.09, 0.012], 0, pal.moss, 0.3 * i, ry);
+      break;
     case 'dry': // brindille sèche
       acc.add('cone5', [x, y0, z], [0.014, 0.09, 0.014], 0, pal.sandDark, 0.5, ry);
       acc.add('cone5', [x + 0.02, y0, z], [0.012, 0.07, 0.012], 0, pal.sandDark, -0.4, ry);
@@ -324,7 +364,7 @@ function decorateCells(acc: Acc, terrain: Terrain, pal: DecorPalette) {
       const { x: cx, z: cz } = cellCenter(size, r, c);
       const y = topY(heights[r][c]);
       // Plateau lisible : 0 ou 1 petit détail par case (un peu plus sur falaises/cuvettes, qui racontent le relief).
-      const p1 = cls === 'cliff' || cls === 'basin' || cls === 'summit' ? 0.85 : 0.5;
+      const p1 = (cls === 'cliff' || cls === 'basin' || cls === 'summit' ? 0.85 : 0.5) * (SPARSE[mode] ?? 1);
       const count = rnd() < p1 ? 1 : 0;
       void n;
       for (let i = 0; i < count; i++) {
@@ -345,10 +385,17 @@ function decorateCells(acc: Acc, terrain: Terrain, pal: DecorPalette) {
 // 5. Éléments hauts (autour du plateau : bordure d'île, îlots)
 // ---------------------------------------------------------------------------
 
-type Prop = 'pine' | 'oak' | 'fern' | 'mushroom' | 'rock' | 'snowrock' | 'stone' | 'heather' | 'flower' | 'grass' | 'cactus' | 'bone';
+type Prop = 'pine' | 'oak' | 'fern' | 'mushroom' | 'rock' | 'snowrock' | 'stone' | 'heather' | 'flower' | 'grass' | 'cactus' | 'bone'
+  | 'blackrock' | 'palm' | 'reed' | 'stump' | 'lily' | 'strata' | 'shrub' | 'arch'
+  | 'dryGrass' | 'bleached' | 'wildflower' | 'butterfly' | 'icicle' | 'icechunk' | 'drift' | 'lantern' | 'firefly'
+  | 'slabs' | 'lichen' | 'raked' | 'stoneLantern' | 'bamboo';
 
 /** Éléments de décor par mode, avec leur poids de tirage. */
 const PROPS: Record<TerrainMode, [Prop, number][]> = {
+  volcano: [['blackrock', 4], ['rock', 1], ['stone', 1]],
+  archipelago: [['palm', 4], ['rock', 2], ['grass', 1]],
+  marsh: [['reed', 4], ['stump', 2], ['lily', 2], ['fern', 1]],
+  canyon: [['strata', 4], ['shrub', 3], ['arch', 1], ['rock', 1]],
   woods: [['pine', 3], ['oak', 3], ['fern', 2], ['mushroom', 1], ['rock', 1]],
   mountains: [['pine', 3], ['snowrock', 3], ['rock', 2]],
   valleys: [['oak', 1], ['flower', 3], ['grass', 3], ['rock', 1]],
@@ -425,6 +472,109 @@ function prop(acc: Acc, kind: Prop, x: number, y: number, z: number, s: number, 
       acc.add('cyl6', [x + 0.1 * s, y + 0.2 * s, z], [0.04 * s, 0.22 * s, 0.04 * s], ry, pal.cactus);
       acc.add('box', [x + 0.05 * s, y + 0.2 * s, z], [0.1 * s, 0.04 * s, 0.04 * s], 0, pal.cactus);
       break;
+    case 'blackrock':
+      acc.add('dodeca', [x, y + 0.2 * s, z], [0.24 * s, 0.3 * s, 0.22 * s], ry, pal.blackRock);
+      acc.add('dodeca', [x + 0.22 * s, y + 0.08 * s, z + 0.05 * s], [0.11 * s, 0.09 * s, 0.1 * s], ry + 1, pal.ash);
+      if (rnd() < 0.4) (acc.glow ?? acc).add('box', [x, y + 0.5 * s, z], [0.1 * s, 0.015, 0.03 * s], ry, pal.lavaGlow);
+      break;
+    case 'palm': {
+      acc.add('cyl6', [x, y, z], [0.04 * s, 0.4 * s, 0.04 * s], ry, pal.trunk, 0, 0.25);
+      const tx = x - Math.sin(ry) * 0.05 * s, ty = y + 0.4 * s;
+      for (let i = 0; i < 5; i++) {
+        const a = ry + (i / 5) * Math.PI * 2;
+        acc.add('cone5', [tx, ty, z], [0.05 * s, 0.3 * s, 0.012 * s], -a, pal.leaf, 0, 1.3);
+      }
+      break;
+    }
+    case 'reed':
+      for (let i = 0; i < 6; i++) {
+        const h = (0.3 + rnd() * 0.3) * s;
+        acc.add('cone5', [x + (rnd() - 0.5) * 0.14 * s, y, z + (rnd() - 0.5) * 0.14 * s], [0.015 * s, h, 0.015 * s], 0, pal.reed, (rnd() - 0.5) * 0.3, (rnd() - 0.5) * 0.3);
+      }
+      acc.add('cyl6', [x, y + 0.34 * s, z], [0.02 * s, 0.1 * s, 0.02 * s], 0, pal.trunk);
+      break;
+    case 'stump':
+      acc.add('cyl7', [x, y, z], [0.12 * s, 0.18 * s, 0.12 * s], ry, pal.trunk);
+      acc.add('cyl7', [x, y + 0.18 * s, z], [0.1 * s, 0.015, 0.1 * s], ry, pal.cap);
+      acc.add('cone5', [x + 0.12 * s, y, z], [0.05 * s, 0.12 * s, 0.05 * s], ry, pal.moss);
+      break;
+    case 'lily':
+      for (let i = 0; i < 3; i++) acc.add('cyl7', [x + (i - 1) * 0.16 * s, y, z + (rnd() - 0.5) * 0.12 * s], [0.09 * s, 0.015, 0.09 * s], ry, pal.lily);
+      acc.add('ico', [x, y + 0.03, z], [0.03 * s, 0.03 * s, 0.03 * s], ry, pal.flowers[2]);
+      break;
+    case 'strata': {
+      let w = 0.32 * s;
+      for (let i = 0; i < 4; i++, w *= 0.82) acc.add('box', [x, y + i * 0.14 * s, z], [w, 0.14 * s, w * 0.8], ry + i * 0.12, pal.strata[i % 3]);
+      break;
+    }
+    case 'shrub':
+      for (let i = 0; i < 4; i++) acc.add('cone5', [x + (rnd() - 0.5) * 0.14 * s, y, z + (rnd() - 0.5) * 0.14 * s], [0.03 * s, 0.22 * s, 0.03 * s], 0, pal.shrub, (rnd() - 0.5) * 0.8, (rnd() - 0.5) * 0.8);
+      break;
+    case 'arch':
+      acc.add('box', [x - 0.22 * s, y, z], [0.16 * s, 0.55 * s, 0.2 * s], ry, pal.strata[0]);
+      acc.add('box', [x + 0.22 * s, y, z], [0.16 * s, 0.45 * s, 0.2 * s], ry, pal.strata[1]);
+      acc.add('box', [x, y + 0.5 * s, z], [0.7 * s, 0.12 * s, 0.22 * s], ry, pal.strata[2]);
+      break;
+    // --- Accents propres aux skins ---
+    case 'dryGrass':
+      for (let i = 0; i < 5; i++) acc.add('cone5', [x + (rnd() - 0.5) * 0.14 * s, y, z + (rnd() - 0.5) * 0.14 * s], [0.015 * s, 0.26 * s, 0.015 * s], 0, pal.sandDark, (rnd() - 0.5) * 0.6, (rnd() - 0.5) * 0.6);
+      break;
+    case 'bleached':
+      acc.add('cone6', [x, y, z], [0.07 * s, 0.05 * s, 0.07 * s], ry, pal.bone, 1.2, 0);
+      acc.add('box', [x + 0.15 * s, y, z], [0.22 * s, 0.03 * s, 0.035 * s], ry, pal.bone);
+      break;
+    case 'wildflower':
+      for (let i = 0; i < 4; i++) {
+        const fx = x + (rnd() - 0.5) * 0.24 * s, fz = z + (rnd() - 0.5) * 0.24 * s;
+        acc.add('cone5', [fx, y, fz], [0.01 * s, 0.16 * s, 0.01 * s], 0, pal.grass);
+        acc.add('ico', [fx, y + 0.17 * s, fz], [0.035 * s, 0.03 * s, 0.035 * s], ry, pal.flowers[i % 3]);
+      }
+      break;
+    case 'butterfly': // papillon statique, posé sur une tige
+      acc.add('cone5', [x, y, z], [0.01 * s, 0.3 * s, 0.01 * s], 0, pal.grass);
+      acc.add('ico', [x + 0.03 * s, y + 0.32 * s, z], [0.05 * s, 0.01, 0.035 * s], ry, pal.flowers[1], 0, 0.5);
+      acc.add('ico', [x - 0.03 * s, y + 0.32 * s, z], [0.05 * s, 0.01, 0.035 * s], ry, pal.flowers[0], 0, -0.5);
+      break;
+    case 'icicle':
+      for (let i = 0; i < 3; i++) acc.add('cone5', [x + i * 0.07 * s, y, z], [0.04 * s, (0.5 - i * 0.15) * s, 0.04 * s], ry, pal.ice);
+      break;
+    case 'icechunk':
+      acc.add('dodeca', [x, y + 0.12 * s, z], [0.2 * s, 0.17 * s, 0.17 * s], ry, pal.ice);
+      acc.add('cone5', [x + 0.15 * s, y, z], [0.09 * s, 0.26 * s, 0.09 * s], ry, pal.frost);
+      break;
+    case 'drift':
+      acc.add('ico', [x, y, z], [0.3 * s, 0.1 * s, 0.2 * s], ry, pal.snow);
+      acc.add('ico', [x + 0.18 * s, y, z + 0.05 * s], [0.16 * s, 0.07 * s, 0.14 * s], ry, pal.snow);
+      break;
+    case 'lantern': // lanterne douce sur piquet
+      acc.add('cyl6', [x, y, z], [0.012 * s, 0.4 * s, 0.012 * s], 0, pal.trunk);
+      (acc.glow ?? acc).add('ico', [x, y + 0.42 * s, z], [0.1 * s, 0.12 * s, 0.1 * s], ry, pal.glow);
+      break;
+    case 'firefly':
+      for (let i = 0; i < 3; i++) (acc.glow ?? acc).add('ico', [x + (rnd() - 0.5) * 0.5 * s, y + (0.2 + rnd() * 0.5) * s, z + (rnd() - 0.5) * 0.5 * s], [0.035, 0.035, 0.035], 0, pal.glow);
+      break;
+    case 'slabs':
+      acc.add('box', [x, y, z], [0.34 * s, 0.07 * s, 0.24 * s], ry, pal.stone);
+      acc.add('box', [x + 0.02, y + 0.07 * s, z], [0.26 * s, 0.07 * s, 0.2 * s], ry + 0.3, pal.stoneDark);
+      acc.add('box', [x, y + 0.14 * s, z], [0.18 * s, 0.06 * s, 0.14 * s], ry + 0.7, pal.stone);
+      break;
+    case 'lichen':
+      acc.add('cyl6', [x, y, z], [0.18 * s, 0.03 * s, 0.14 * s], ry, pal.moss);
+      acc.add('dodeca', [x + 0.05, y + 0.05 * s, z], [0.12 * s, 0.08 * s, 0.1 * s], ry, pal.stone);
+      break;
+    case 'raked':
+      acc.add('cyl7', [x, y, z], [0.3 * s, 0.02 * s, 0.3 * s], ry, pal.sand);
+      acc.add('dodeca', [x, y + 0.03 * s, z], [0.07 * s, 0.05 * s, 0.07 * s], ry, pal.stone);
+      acc.add('dodeca', [x + 0.1 * s, y + 0.02 * s, z + 0.05 * s], [0.04 * s, 0.03 * s, 0.04 * s], ry, pal.stoneDark);
+      break;
+    case 'stoneLantern':
+      acc.add('cyl6', [x, y, z], [0.06 * s, 0.14 * s, 0.06 * s], ry, pal.stone);
+      (acc.glow ?? acc).add('box', [x, y + 0.15 * s, z], [0.07 * s, 0.07 * s, 0.07 * s], ry, pal.glow);
+      acc.add('cone6', [x, y + 0.22 * s, z], [0.12 * s, 0.07 * s, 0.12 * s], ry, pal.stoneDark);
+      break;
+    case 'bamboo':
+      for (let i = 0; i < 4; i++) acc.add('cyl6', [x + (rnd() - 0.5) * 0.16 * s, y, z + (rnd() - 0.5) * 0.16 * s], [0.018 * s, (0.6 + rnd() * 0.4) * s, 0.018 * s], 0, pal.reed);
+      break;
     case 'bone':
       acc.add('box', [x, y, z], [0.3 * s, 0.05 * s, 0.05 * s], ry, pal.bone);
       acc.add('ico', [x + 0.17 * s, y + 0.04 * s, z], [0.07 * s, 0.06 * s, 0.07 * s], ry, pal.bone);
@@ -449,8 +599,108 @@ function decorateRim(acc: Acc, terrain: Terrain, pal: DecorPalette) {
       // Côté caméra (+Z) : éléments plus petits pour ne jamais masquer la rangée de départ.
       const front = side === 2 ? 0.6 : 1.25;
       const kind = pickWeighted(list, rnd);
-      prop(acc, kind, x, 0, z, (0.8 + rnd() * 0.7) * front, rnd, pal);
+      prop(acc, kind, x, 0, z, (0.8 + rnd() * 0.7) * front * lift(terrain, x, z), rnd, pal);
     }
+  }
+}
+
+/** Les colonnes hautes du bord masquent un décor posé à plat : on grandit l'élément selon la hauteur voisine. */
+function lift(terrain: Terrain, x: number, z: number): number {
+  const n = terrain.size;
+  const col = Math.min(n - 1, Math.max(0, Math.round(x + (n - 1) / 2)));
+  const row = Math.min(n - 1, Math.max(0, Math.round((n - 1) / 2 - z)));
+  return 1 + terrain.heights[row][col] * 0.12;
+}
+
+/** Accents propres au skin (15–25 % du décor autour) : le mode reste le thème principal. */
+const SKIN_PROPS: Record<string, [Prop, number][]> = {
+  dunes: [['dryGrass', 3], ['bleached', 2]],
+  prairie: [['wildflower', 4], ['butterfly', 2]],
+  banquise: [['icicle', 3], ['icechunk', 2], ['drift', 3]],
+  crepuscule: [['lantern', 3], ['firefly', 3]],
+  ardoise: [['slabs', 3], ['lichen', 2]],
+  jardin: [['raked', 2], ['stoneLantern', 2], ['bamboo', 3]],
+};
+
+function decorateSkinAccents(acc: Acc, terrain: Terrain, pal: DecorPalette, skin: Skin) {
+  const list = SKIN_PROPS[skin.id];
+  if (!list) return;
+  const rnd = mulberry32(hashSeed(`${terrain.seed}:skin:${skin.id}`));
+  const half = terrain.size / 2;
+  const perSide = 10;
+  for (let side = 0; side < 4; side++) {
+    for (let i = 0; i < perSide; i++) {
+      const u = ((i + 0.2 + rnd() * 0.6) / perSide) * (half * 2 + 1) - (half + 0.5);
+      const off = half + 0.17 + rnd() * 0.22;
+      let x = u, z = -off;
+      if (side === 1) { x = off; z = u; }
+      if (side === 2) { x = u; z = off; }
+      if (side === 3) { x = -off; z = u; }
+      const front = side === 2 ? 0.6 : 1.2;
+      prop(acc, pickWeighted(list, rnd), x, 0, z, (1.2 + rnd() * 0.6) * front * lift(terrain, x, z), rnd, pal);
+    }
+  }
+  // Quelques accents sur les îlots flottants.
+  for (let k = 0; k < 4; k++) {
+    const a = k * 1.7 + rnd();
+    const d = 12 + rnd() * 8;
+    prop(acc, pickWeighted(list, rnd), Math.cos(a) * d, -2 + rnd() * 2, Math.sin(a) * d, 1 + rnd() * 0.5, rnd, pal);
+  }
+}
+
+/** Décor propre au mode, hors props : lave et fumerolles, lagon, brume basse. */
+function decorateModeExtras(around: Acc, glow: Acc, sky: Acc, terrain: Terrain, pal: DecorPalette) {
+  const rnd = mulberry32(hashSeed(`${terrain.seed}:modefx`));
+  switch (terrain.mode) {
+    case 'volcano': {
+      // Coulées émissives douces le long du cône rocheux + quelques mares au pied, fumerolles autour.
+      for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * Math.PI * 2 + rnd() * 0.6;
+        if (Math.abs(a % (Math.PI * 2) - Math.PI / 2) < 0.5) continue; // pas devant la caméra
+        for (let j = 0; j < 5; j++) {
+          const d = 0.2 + j * 0.8;
+          const R = 7.2 * (1 - (d + 0.5) / 6.2) * 0.95 + 0.45;
+          glow.add('box', [Math.cos(a) * R, -0.5 - d, Math.sin(a) * R], [0.16 - j * 0.015, 0.8, 0.16 - j * 0.015], -a, j % 2 ? pal.lava : pal.lavaGlow);
+        }
+      }
+      for (let k = 0; k < 5; k++) {
+        const a = rnd() * Math.PI * 2;
+        const dist = 12 + rnd() * 9;
+        glow.add('cyl7', [Math.cos(a) * dist, -2.5 + rnd() * 3, Math.sin(a) * dist], [0.6 + rnd() * 0.5, 0.05, 0.5], rnd() * 6, pal.lava);
+      }
+      for (let k = 0; k < 7; k++) {
+        const a = (k / 7) * Math.PI * 2 + rnd() * 0.5;
+        const dist = 8 + rnd() * 8;
+        const x = Math.cos(a) * dist, z = Math.sin(a) * dist, y = -2 + rnd() * 3;
+        for (let p = 0; p < 4; p++) {
+          const sc = 0.35 + p * 0.12;
+          sky.add('ico', [x + (rnd() - 0.5) * 0.3, y + p * 0.7, z + (rnd() - 0.5) * 0.3], [sc, sc * 0.8, sc], rnd() * 6, pal.ash);
+        }
+      }
+      break;
+    }
+    case 'archipelago': {
+      // Lagon : disque d'eau translucide sous et autour de l'île, avec un anneau d'écume.
+      sky.add('cyl7', [0, -6.2, 0], [17, 0.05, 17], 0, pal.water);
+      sky.add('cyl7', [0, -6.1, 0], [8.5, 0.05, 8.5], 0, pal.frost);
+      for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * Math.PI * 2 + rnd();
+        const d = 9 + rnd() * 6;
+        around.add('dodeca', [Math.cos(a) * d, -6.2, Math.sin(a) * d], [0.6, 0.5, 0.6], rnd() * 6, pal.stone);
+      }
+      break;
+    }
+    case 'marsh': {
+      // Brume basse : galettes blanches très plates autour de l'île.
+      for (let k = 0; k < 14; k++) {
+        const a = (k / 14) * Math.PI * 2 + rnd() * 0.3;
+        const d = 6.8 + rnd() * 4;
+        sky.add('ico', [Math.cos(a) * d, -0.6 + rnd() * 0.8, Math.sin(a) * d], [1.6 + rnd(), 0.22, 1.2 + rnd() * 0.6], rnd() * 6, pal.mist);
+      }
+      break;
+    }
+    default:
+      break;
   }
 }
 
@@ -512,11 +762,11 @@ function decorateTranslucent(acc: Acc, terrain: Terrain, pal: DecorPalette) {
   // (décalée vers l'extérieur pour ne pas s'enfouir dans la roche), avec des embruns au pied.
   if (terrain.mode === 'valleys' || terrain.mode === 'highlands') {
     const z = 1.5; // côté gauche : visible dans la vue par défaut
-    // Nappe qui déborde du bord de la dalle, puis chute verticale en dehors du rocher (x = −7,6).
-    acc.add('box', [-6.6, -0.42, z], [2.1, 0.07, 1.0], 0, pal.water);
-    acc.add('box', [-7.6, -3.0, z], [0.14, 2.6, 1.0], 0, pal.water);
-    acc.add('ico', [-7.4, -0.4, z], [0.45, 0.14, 0.6], 0, pal.frost);
-    acc.add('ico', [-7.4, -3.1, z], [0.5, 0.25, 0.7], 0, pal.frost);
+    // Fil d'eau fin : lèvre à peine visible, chute effilée (cône retourné), embruns au pied.
+    acc.add('box', [-6.5, -0.4, z], [1.8, 0.03, 0.22], 0, pal.water);
+    acc.add('cone6', [-7.5, -0.4, z], [0.11, 3.0, 0.11], 0, pal.water, Math.PI);
+    acc.add('cone6', [-7.5, -0.4, z], [0.05, 2.9, 0.05], 0, pal.frost, Math.PI);
+    for (let i = 0; i < 4; i++) acc.add('ico', [-7.45 + (i - 1.5) * 0.14, -3.45 + (i % 2) * 0.12, z + (i - 1.5) * 0.05], [0.16, 0.1, 0.16], i, pal.frost);
   }
   // Nuages d'appoint : amas de 3 à 4 volumes écrasés, loin du plateau.
   for (let k = 0; k < 5; k++) {
@@ -554,17 +804,23 @@ export function buildDecor(terrain: Terrain, skin: Skin): DecorView {
   group.name = 'decor';
 
   // 3 maillages : détails des cases (pas d'ombre portée), décor autour (ombres), éléments translucides.
-  const surface = new Acc(rand, 16000);
+  const surface = new Acc(rand, 6000);
   decorateCells(surface, terrain, pal);
-  const around = new Acc(rand, 10000);
+  const around = new Acc(rand, 15000);
+  const glow = new Acc(rand, 3000);
+  around.glow = glow;
+  surface.glow = glow;
   decorateRim(around, terrain, pal);
   decorateUnderside(around, terrain, pal, skin);
   decorateIslets(around, terrain, pal, skin);
+  decorateSkinAccents(around, terrain, pal, skin);
   const sky = new Acc(rand, 4000);
+  decorateModeExtras(around, glow, sky, terrain, pal);
   decorateTranslucent(sky, terrain, pal);
 
   const solid = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 1, metalness: 0 });
   const glass = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.6, transparent: true, opacity: 0.85, depthWrite: false });
+  const lit = new THREE.MeshBasicMaterial({ vertexColors: true });
   let triangles = 0;
   let drawCalls = 0;
   const mk = (acc: Acc, mat: THREE.Material, cast: boolean, name: string) => {
@@ -581,6 +837,7 @@ export function buildDecor(terrain: Terrain, skin: Skin): DecorView {
   };
   mk(surface, solid, false, 'decor-surface');
   mk(around, solid, true, 'decor-around');
+  mk(glow, lit, false, 'decor-glow');
   mk(sky, glass, false, 'decor-sky');
 
   return {
@@ -590,6 +847,7 @@ export function buildDecor(terrain: Terrain, skin: Skin): DecorView {
       group.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
       solid.dispose();
       glass.dispose();
+      lit.dispose();
     },
   };
 }
