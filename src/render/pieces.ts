@@ -45,14 +45,12 @@ function buildBase(sides: number, r: number): THREE.BufferGeometry {
   ];
   const phiStart = sides % 2 === 0 ? Math.PI / sides : 0;
   const g = new THREE.LatheGeometry(pts, sides, phiStart);
-  // Centrage : un polygone à nombre impair de côtés est centré sur son cercle
-  // circonscrit, pas sur sa boîte englobante (un triangle « déborde » vers sa
-  // pointe). On recentre la boîte sur l'axe, puis on met à l'échelle pour que
-  // le plus grand côté de la boîte vaille 2r : les trois socles occupent la
-  // même place sur la case, quel que soit leur nombre de côtés.
+  // Le polygone reste centré sur son propre centre (= axe du fût) : recentrer sa
+  // boîte englobante décalait le triangle de la Sentinelle par rapport au fût.
+  // On met seulement à l'échelle pour que le plus grand côté de la boîte vaille
+  // 2r : les trois socles occupent à peu près la même place sur la case.
   g.computeBoundingBox();
   const bb = g.boundingBox!;
-  g.translate(-(bb.min.x + bb.max.x) / 2, 0, -(bb.min.z + bb.max.z) / 2);
   const span = Math.max(bb.max.x - bb.min.x, bb.max.z - bb.min.z);
   const k = (2 * r) / span;
   g.scale(k, 1, k);
