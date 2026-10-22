@@ -18,6 +18,7 @@ import type { TimeControl } from './engine/engine';
 import { AI_LEVELS, levelNumber, type AiLevel } from './engine/ai/search';
 import { setupRulesPanel } from './ui/rules-panel';
 import { tally } from './engine/tally';
+import { setupTheme } from './ui/theme';
 import { stateAtPly } from './engine/replay';
 import { PIECES } from './engine/rules';
 import { MODE_BLURB, drawTerrainPreview } from './ui/home';
@@ -60,12 +61,21 @@ document.body.classList.toggle('cb', colorblind);
 // ---------------------------------------------------------------------------
 // Skin (déterminé par le mode de terrain)
 // ---------------------------------------------------------------------------
+/** Thème sombre : ciel, brume et nuages sont assombris (la palette du terrain et le plateau ne changent pas). */
+let darkUi = false;
+const NIGHT = new THREE.Color('#12152b');
+const dim = (hex: string, k: number) => new THREE.Color(hex).lerp(NIGHT, darkUi ? k : 0);
+function applySky() {
+  const s = skin;
+  document.documentElement.style.setProperty('--sky-top', `#${dim(s.sky.top, 0.78).getHexString()}`);
+  document.documentElement.style.setProperty('--sky-bottom', `#${dim(s.sky.bottom, 0.78).getHexString()}`);
+  (scene.fog as THREE.Fog).color.copy(dim(s.fog, 0.78));
+  clouds.setColor(`#${dim(s.cloud, 0.6).getHexString()}`);
+  renderer.toneMappingExposure = darkUi ? 1.0 : 1.3;
+}
 function applySkin(s: Skin) {
   skin = s;
-  document.documentElement.style.setProperty('--sky-top', s.sky.top);
-  document.documentElement.style.setProperty('--sky-bottom', s.sky.bottom);
-  (scene.fog as THREE.Fog).color.set(s.fog);
-  clouds.setColor(s.cloud);
+  applySky();
   if (island) scene.remove(island);
   island = buildIsland(RULES.board.size, s);
   scene.add(island);
@@ -698,6 +708,10 @@ for (const d of drawers) {
 }
 
 setupRulesPanel($('btn-rules'));
+setupTheme((dark) => {
+  darkUi = dark;
+  applySky();
+});
 applySkin(skin);
 refreshFirstLabels();
 // Lien partagé (mode, seed, adversaire…) : on lance la partie directement ; sinon, accueil.

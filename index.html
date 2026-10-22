@@ -44,6 +44,11 @@
       </div>
       <label class="check"><input type="checkbox" id="follow" /> Caméra vers le joueur actif</label>
       <label class="check" title="Ajoute un repère non coloré par camp : anneau plein (Corail) ou pointillé (Lagon), et ● / ◆"><input type="checkbox" id="colorblind" /> Mode daltonien</label>
+      <label>Thème <select class="theme-select" aria-label="Thème de l'interface">
+          <option value="auto">Auto (système)</option>
+          <option value="light">Clair</option>
+          <option value="dark">Sombre</option>
+        </select></label>
       <label>Son</label>
       <div class="sound-row">
         <input type="range" id="volume" min="0" max="1" step="0.05" aria-label="Volume" />
@@ -136,6 +141,11 @@
         <div class="home-actions">
           <button id="btn-play" class="btn btn-primary">Jouer</button>
           <button id="btn-home-rules" class="btn">Règles</button>
+          <label class="home-theme">Thème <select class="theme-select" aria-label="Thème de l'interface">
+          <option value="auto">Auto (système)</option>
+          <option value="light">Clair</option>
+          <option value="dark">Sombre</option>
+        </select></label>
         </div>
       </div>
     </main>
