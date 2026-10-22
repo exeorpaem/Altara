@@ -26,7 +26,7 @@ ni les éléments graphiques du jeu d'origine.
 ```bash
 npm install
 npm run dev          # jeu : http://localhost:5173/ · vitrine des pièces : /showcase/
-npm test             # 80 tests Vitest (tous doivent passer avant chaque commit)
+npm test             # tests Vitest (108) (tous doivent passer avant chaque commit)
 npx tsc --noEmit     # vérification des types
 npm run build        # build de production (BASE_PATH=/Altara/ pour GitHub Pages)
 npm run selfplay -- --duel 50 --equity 100 --jobs 4
@@ -37,7 +37,8 @@ Modes de terrain : random, mountains, valleys, highlands, woods, desert, volcano
 
 Débogage navigateur : ajouter `?debug` à l'URL expose `window.__altara`
 (`engine()`, `view()`, `board()`, `ai`, `sound`, `screenOf(row, col)`, `soundDemo()`).
-Paramètres d'URL : `?mode=woods&seed=KNVDF0&ai=5|local&cadence=10+0`.
+Paramètres d'URL : `?mode=woods&seed=KNVDF0&ai=5|local&cadence=10%2B0&first=1|2|random`
+(dans une URL, `+` se lit comme un espace : la cadence est encodée).
 
 ## Architecture (voir aussi README.md)
 
@@ -94,8 +95,8 @@ implémentation des règles (core/actions) sert à l'interface ET à l'IA.
 1. `RULES.movement.exitInSameMove = true` : atteindre la dernière rangée et sortir dans le même coup.
 2. (Tranché) Dernière pièce SORTIE : gagne si l'adversaire ne peut plus l'égaler (score + Force de ses
    pièces restantes < ses points), nulle si au mieux égalité, sinon perd. Dernière pièce CAPTURÉE : perd.
-3. **Charge** : l'utilisateur a demandé si elle compte le *coût* (actuel, conforme à sa consigne) ou le
-   *nombre de cases* parcourues — **question restée sans réponse**.
+3. (Tranché) **Charge** : on compte le **coût** du chemin (pas le nombre de cases) ; la charge par
+   contournement (autre case d'appui) est conservée.
 4. Notation d'attaque depuis la case de départ (ex. `A G4×H6`).
 
 ## Faits connus / pièges
@@ -108,15 +109,19 @@ implémentation des règles (core/actions) sert à l'interface ET à l'IA.
   le fil principal (Difficile limité à 1 s). Ne pas retirer ce repli.
 - Sous Vitest, ne pas dépendre de l'ordre des tests ; les tests de terrain tournent 6 000 générations.
 - Charge + case d'appui automatique : une Avant-garde peut obtenir la charge en contournant la cible
-  (chemin de coût 4 par une autre case d'appui) → 3 contre 3 contre une Sentinelle isolée sur terrain plat.
+  (chemin de coût 4 par une autre case d'appui) → 3 contre 3 contre une Sentinelle isolée (voulu).
+- `npm test` exécute aussi les worktrees d'agents sous `.claude/` : utiliser
+  `npx vitest run --exclude '.claude/**'` quand il y en a.
 
 ## Fait (résumé)
 
-Moteur complet et testé (80 tests) · rendu low-poly pastel, palette (skin) imposée par le terrain (10 palettes), île flottante · sélection,
+Moteur complet et testé (108 tests) · rendu low-poly pastel, palette (skin) imposée par le terrain (10 palettes), île flottante · sélection,
 marqueurs, aperçu de chemin, animations · inspection des pièces adverses (anneaux creux) · anneau gris
 des attaques refusées avec explication · IA 1 à 10 dans un Web Worker · pendule · sound design
 synthétisé (une gamme pentatonique, voix par camp, ambiance) · bouton Annuler / Ctrl+Z · clic droit =
-désélection · CI et déploiement GitHub Pages.
+désélection · CI et déploiement GitHub Pages · fiche de règles · choix du joueur qui commence ·
+10 modes de terrain avec décors 3D (src/render/decor.ts). Mode en ligne : abandonné. Design des
+pièces : on garde le design d'origine (styles alternatifs essayés puis abandonnés).
 
 ## Reste à faire (cahier des charges initial, étape 5 non terminée)
 
@@ -127,5 +132,5 @@ désélection · CI et déploiement GitHub Pages.
 - [x] **Fiche de règles** : bouton « Règles » / touche R (`src/ui/rules-panel.ts`, contenu lu depuis RULES/PIECES).
 - [ ] Boutons Recommencer / Menu en jeu ; affichage des pièces sorties et capturées.
 - [ ] Relancer le self-play d'équité avec la nouvelle règle de fin et commenter les résultats.
-- [ ] Vérifier que les deux GitHub Actions passent après le premier envoi, et que Pages est activé
-      (Settings → Pages → Source : GitHub Actions).
+- [x] GitHub Actions vertes, Pages activé (Source : GitHub Actions ; un déploiement peut demander
+      une approbation dans l'onglet Actions).
