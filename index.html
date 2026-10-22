@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <title>Altara</title>
+    <link rel="stylesheet" href="./src/ui/base.css" />
+    <link rel="stylesheet" href="./src/ui/game.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="overlay"></div>
+
+    <header class="hud-title">
+      <h1>Altara</h1>
+      <p id="info"></p>
+    </header>
+
+    <div class="hud-turn">
+      <div class="turn-row">
+        <div class="clock" id="clock-1"><i style="background: var(--coral)"></i><b>10:00</b></div>
+        <div class="turn-pill"><i id="turn-dot"></i><span id="turn-text"></span></div>
+        <div class="clock" id="clock-2"><i style="background: var(--lagoon)"></i><b>10:00</b></div>
+      </div>
+      <div class="turn-meta">
+        <span>Coup <b id="turn-count">0</b> / 200</span>
+        <span class="score" id="score-1"><i style="background: var(--coral)"></i>Corail <b>0</b>/2 sorties <em>· 0 pt</em></span>
+        <span class="score" id="score-2"><i style="background: var(--lagoon)"></i>Lagon <b>0</b>/2 sorties <em>· 0 pt</em></span>
+      </div>
+    </div>
+
+    <details class="tr-panel" id="panel" open>
+      <summary>Partie &amp; décor</summary>
+      <label>Adversaire
+        <select id="opponent">
+          <option value="local">2 joueurs (local)</option>
+          <option value="ai" selected>Contre l'IA</option>
+        </select>
+      </label>
+      <div class="ai-level" id="ai-level-box">
+        <label for="ai-level">Niveau de l'IA <b id="ai-level-num">5</b> / 10 · <span id="ai-level-name">Moyen</span></label>
+        <input type="range" id="ai-level" min="1" max="10" step="1" value="5" />
+        <small id="ai-level-hint">anticipe ta réponse (2 coups)</small>
+      </div>
+      <label>Seed de l'IA <input id="ai-seed" maxlength="12" spellcheck="false" placeholder="au hasard" /></label>
+      <label>Cadence (par joueur)
+        <select id="cadence">
+          <option value="10+0" selected>10 min (10+0)</option>
+          <option value="5+0">5 min (5+0)</option>
+          <option value="3+2">3 min + 2 s (3+2)</option>
+          <option value="15+10">15 min + 10 s (15+10)</option>
+          <option value="none">Sans limite</option>
+        </select>
+      </label>
+      <label>Terrain <select id="mode"></select></label>
+      <label>Seed <input id="seed" maxlength="12" spellcheck="false" /></label>
+      <div class="tr-row">
+        <button id="btn-new-game" class="btn">Nouvelle partie</button>
+        <button id="btn-new-seed" class="btn">Seed au hasard</button>
+      </div>
+      <label>Skin du plateau</label>
+      <div class="skins" id="skins"></div>
+      <label class="check"><input type="checkbox" id="follow" /> Caméra vers le joueur actif</label>
+      <label>Son</label>
+      <div class="sound-row">
+        <input type="range" id="volume" min="0" max="1" step="0.05" aria-label="Volume" />
+        <label class="check"><input type="checkbox" id="ambience" /> Ambiance</label>
+      </div>
+    </details>
+
+    <div class="legend">
+      <span><i class="lg-dot"></i>Déplacement (pâlit avec le coût)</span>
+      <span><i class="lg-diamond"></i>Coup spécial</span>
+      <span><i class="lg-ring"></i>Attaque</span>
+      <span><i class="lg-ring lg-grey"></i>Attaque impossible (survol : pourquoi)</span>
+      <span><i class="lg-arrow">➜</i>Sortie</span>
+      <span><i class="lg-hollow"></i>Pièce adverse : clic pour voir ses coups</span>
+      <span><i class="lg-key">⌫</i>Clic droit ou Échap : annuler la sélection</span>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <div class="end-screen" id="end" hidden>
+      <div class="end-card">
+        <div class="end-badge" id="end-badge"></div>
+        <h2 id="end-title"></h2>
+        <p id="end-reason"></p>
+        <div class="end-score" id="end-score"></div>
+        <div class="end-actions">
+          <button id="end-undo" class="btn">Annuler le dernier coup</button>
+          <button id="end-replay" class="btn">Rejouer ce terrain</button>
+          <button id="end-new" class="btn">Nouvelle partie</button>
+          <button id="end-close" class="btn btn-ghost">Voir le plateau</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="sc-controls">
+      <button id="btn-undo" class="btn btn-undo" title="Annuler le dernier coup (Ctrl+Z)">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 14L4 9l5-5" /><path d="M4 9h11a5 5 0 0 1 0 10h-3" />
+        </svg>
+        Annuler le coup
+      </button>
+      <button id="btn-default" class="btn">Vue par défaut</button>
+      <button id="btn-top" class="btn">Vue de dessus</button>
+      <button id="btn-sound" class="btn btn-icon" aria-label="Couper le son" title="Couper le son (M)">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 9.5h3.5L12 5v14l-4.5-4.5H4z" fill="currentColor" stroke="none" />
+          <path class="wave" d="M15.5 9a4 4 0 0 1 0 6" />
+          <path class="wave" d="M18 6.5a7.5 7.5 0 0 1 0 11" />
+          <path class="cross" d="M16 9.5l5 5M21 9.5l-5 5" />
+        </svg>
+      </button>
+    </div>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
