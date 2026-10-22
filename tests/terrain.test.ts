@@ -33,4 +33,42 @@ describe('générateur de terrain', () => {
     expect(mean('desert')).toBeLessThan(mean('woods') + 0.5);
     expect(mean('woods')).toBeLessThan(mean('valleys'));
   });
+
+  describe('formes des nouveaux modes', () => {
+    const N = 100;
+    const cells = (mode: Parameters<typeof generateTerrain>[0], pick: (r: number, c: number) => boolean) => {
+      let s = 0, k = 0;
+      for (let i = 0; i < N; i++) {
+        const t = generateTerrain(mode, `f${i}`);
+        for (let r = 0; r < t.size; r++) for (let c = 0; c < t.size; c++) if (pick(r, c)) { s += t.heights[r][c]; k++; }
+      }
+      return s / k;
+    };
+    it('volcan : centre plus haut que les bords', () => {
+      const centre = cells('volcano', (r, c) => r >= 4 && r <= 5 && c >= 4 && c <= 5);
+      const bords = cells('volcano', (r, c) => r === 0 || c === 0 || r === 9 || c === 9);
+      expect(centre).toBeGreaterThan(bords + 2);
+    });
+    it('volcan : hauteur moyenne décroissante par anneau autour du centre', () => {
+      const ring = (k: number) => cells('volcano', (r, c) => Math.max(Math.abs(r - 4.5), Math.abs(c - 4.5)) === k + 0.5);
+      const m = [0, 1, 2, 3, 4].map(ring);
+      for (let i = 1; i < m.length; i++) expect(m[i]).toBeLessThan(m[i - 1]);
+    });
+    it('canyon : couloir central plus bas que les flancs', () => {
+      const couloir = cells('canyon', (_r, c) => c >= 4 && c <= 5);
+      const flancs = cells('canyon', (_r, c) => c <= 1 || c >= 8);
+      expect(couloir).toBeLessThan(flancs - 1.5);
+    });
+    it('marais : faible amplitude', () => {
+      for (let i = 0; i < N; i++) {
+        const f = generateTerrain('marsh', `f${i}`).heights.flat();
+        expect(Math.max(...f) - Math.min(...f)).toBeLessThanOrEqual(3);
+      }
+    });
+    it('archipel : forte proportion de creux', () => {
+      let low = 0;
+      for (let i = 0; i < N; i++) low += generateTerrain('archipelago', `f${i}`).heights.flat().filter((h) => h <= 1).length;
+      expect(low / (N * 100)).toBeGreaterThan(0.3);
+    });
+  });
 });
