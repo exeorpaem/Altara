@@ -69,7 +69,10 @@ describe('buildDecor', () => {
       const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
       const col = Math.min(n - 1, Math.max(0, Math.round(x + (n - 1) / 2)));
       const row = Math.min(n - 1, Math.max(0, Math.round((n - 1) / 2 - z)));
-      const top = (t.heights[row][col] + 1) * 0.3;
+      // Un détail peut déborder un peu sur la case voisine : on prend la plus haute de la zone 3×3.
+      let hmax = 0;
+      for (let dr = -1; dr <= 1; dr++) for (let dc = -1; dc <= 1; dc++) hmax = Math.max(hmax, t.heights[Math.min(n - 1, Math.max(0, row + dr))][Math.min(n - 1, Math.max(0, col + dc))]);
+      const top = (hmax + 1) * 0.3;
       expect(y - top).toBeLessThanOrEqual(0.16);
     }
     d.dispose();

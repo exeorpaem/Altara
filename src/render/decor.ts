@@ -88,24 +88,24 @@ export interface DecorPalette {
 export function decorPalette(skin: Skin, mode: TerrainMode): DecorPalette {
   const dry = mode === 'desert';
   const p: DecorPalette = {
-    grass: mix(skin.hollow, '#8FC27A', 0.5),
+    grass: mix(skin.hollow, '#4E9A4A', 0.7),
     leaf: mix(skin.low, '#76B26C', 0.6),
     leafDark: mix(skin.line, '#4F8A5A', 0.55),
     trunk: mix(skin.rock, '#8C6B52', 0.5),
-    stone: mix(skin.rock, skin.high, 0.2),
-    stoneDark: mix(skin.rock, skin.line, 0.45),
+    stone: mix(skin.rock, '#6F6A66', 0.35),
+    stoneDark: mix(skin.rock, skin.line, 0.7),
     snow: mix(skin.high, '#FFFFFF', 0.75),
-    sand: mix(skin.low, '#EBD7A4', 0.45),
-    sandDark: mix(skin.low, skin.line, 0.35),
+    sand: mix(skin.high, '#FFF3CF', 0.6),
+    sandDark: mix(skin.low, skin.line, 0.6),
     cactus: mix(skin.hollow, '#74AE88', 0.6),
-    heather: mix(skin.high, '#B49BD2', 0.65),
+    heather: mix(skin.high, '#8E6BC0', 0.8),
     bone: mix(skin.high, '#F3ECDD', 0.7),
-    water: mix(skin.hollow, '#9CC6E8', 0.6),
-    crack: mix(skin.line, '#3B3A36', 0.2),
-    frost: mix(skin.high, '#EAF5FF', 0.7),
-    moss: mix(skin.hollow, '#5F9A6A', 0.5),
-    cap: mix(skin.high, '#D9B58E', 0.5),
-    flowers: [mix(skin.high, '#F6E27A', 0.65), mix(skin.high, '#C3B1EE', 0.6), mix(skin.high, '#FFFFFF', 0.8)],
+    water: mix(skin.hollow, '#4F9AD8', 0.7),
+    crack: mix(skin.line, '#2E2C2A', 0.6),
+    frost: mix('#FFFFFF', '#DCEEFF', 0.4),
+    moss: mix(skin.hollow, '#3F8456', 0.75),
+    cap: mix(skin.high, '#B8895A', 0.7),
+    flowers: [mix(skin.high, '#F2CB2E', 0.85), mix(skin.high, '#8E74E0', 0.8), new THREE.Color('#FFFFFF')],
     cloud: new THREE.Color(skin.cloud),
     islet: dry ? mix(skin.low, '#E6CF9C', 0.4) : mix(skin.low, '#86BC72', 0.5),
   };
@@ -246,7 +246,13 @@ const RECIPES: Record<TerrainMode, Recipe> = {
   },
 };
 
-function surfaceDetail(acc: Acc, kind: Detail, x: number, y: number, z: number, rnd: () => number, pal: DecorPalette) {
+/** Emprise au sol agrandie (×1,4) sans toucher à la hauteur : lecture plus nette depuis la caméra. */
+const FOOT = 1.4;
+function surfaceDetail(acc0: Acc, kind: Detail, x: number, y: number, z: number, rnd: () => number, pal: DecorPalette) {
+  const acc = {
+    add: (n: TplName, p: [number, number, number], sc: [number, number, number], ry: number, c: THREE.Color, rx = 0, rz = 0) =>
+      acc0.add(n, p, [sc[0] * FOOT, sc[1], sc[2] * FOOT], ry, c, rx, rz),
+  };
   const ry = rnd() * Math.PI * 2;
   const y0 = y + 0.008; // décollé du dessus du bloc : pas de scintillement (z-fighting)
   switch (kind) {
@@ -317,15 +323,15 @@ function decorateCells(acc: Acc, terrain: Terrain, pal: DecorPalette) {
       const { kinds, n } = recipe[cls];
       const { x: cx, z: cz } = cellCenter(size, r, c);
       const y = topY(heights[r][c]);
-      const count = n[0] + Math.floor(rnd() * (n[1] - n[0] + 1));
+      const count = Math.round((n[0] + Math.floor(rnd() * (n[1] - n[0] + 1))) * 2.5);
       for (let i = 0; i < count; i++) {
         let kind = kinds[Math.floor(rnd() * kinds.length)];
         if (mode === 'mountains' && heights[r][c] >= SNOW_LINE && rnd() < 0.5) kind = 'frost';
         // Anneau 0,3–0,43 autour du centre : la pièce posée reste entièrement visible.
         const a = rnd() * Math.PI * 2;
-        const rad = 0.3 + rnd() * 0.13;
-        const dx = Math.max(-0.4, Math.min(0.4, Math.cos(a) * rad));
-        const dz = Math.max(-0.4, Math.min(0.4, Math.sin(a) * rad));
+        const rad = 0.27 + rnd() * 0.12;
+        const dx = Math.max(-0.36, Math.min(0.36, Math.cos(a) * rad));
+        const dz = Math.max(-0.36, Math.min(0.36, Math.sin(a) * rad));
         surfaceDetail(acc, kind, cx + dx * CELL, y, cz + dz * CELL, rnd, pal);
       }
     }
@@ -499,11 +505,14 @@ function decorateIslets(acc: Acc, terrain: Terrain, pal: DecorPalette, skin: Ski
 
 function decorateTranslucent(acc: Acc, terrain: Terrain, pal: DecorPalette) {
   const rnd = mulberry32(hashSeed(`${terrain.seed}:sky`));
-  // Cascade qui tombe du bord de l'île (modes à eau : Vallées, Hautes terres).
+  // Cascade (modes à eau) : chute depuis le bord de la dalle, puis coulée le long du cône rocheux
+  // (décalée vers l'extérieur pour ne pas s'enfouir dans la roche), avec des embruns au pied.
   if (terrain.mode === 'valleys' || terrain.mode === 'highlands') {
-    const z = (rnd() - 0.5) * 4;
-    acc.add('box', [5.62, -2.4, z], [0.07, 2.4, 0.45], 0, pal.water);
-    acc.add('ico', [5.7, -2.4, z], [0.35, 0.18, 0.35], 0, pal.frost); // embruns au pied de la chute
+    const z = 1.2;
+    acc.add('box', [5.66, -0.5, z], [0.1, 0.55, 0.7], 0, pal.water);
+    acc.add('box', [7.35, -3.1, z], [0.16, 2.6, 0.7], 0, pal.water, 0, 0.62);
+    acc.add('ico', [5.9, -0.45, z], [0.35, 0.12, 0.45], 0, pal.frost);
+    acc.add('ico', [5.5, -3.5, z], [0.4, 0.2, 0.5], 0, pal.frost);
   }
   // Nuages d'appoint : amas de 3 à 4 volumes écrasés, loin du plateau.
   for (let k = 0; k < 5; k++) {
@@ -541,9 +550,9 @@ export function buildDecor(terrain: Terrain, skin: Skin): DecorView {
   group.name = 'decor';
 
   // 3 maillages : détails des cases (pas d'ombre portée), décor autour (ombres), éléments translucides.
-  const surface = new Acc(rand, 12000);
+  const surface = new Acc(rand, 16000);
   decorateCells(surface, terrain, pal);
-  const around = new Acc(rand, 14000);
+  const around = new Acc(rand, 10000);
   decorateRim(around, terrain, pal);
   decorateUnderside(around, terrain, pal, skin);
   decorateIslets(around, terrain, pal, skin);
