@@ -1,4 +1,5 @@
 // Page principale (aperçu jouable) : terrain, pièces, sélection et déplacements.
+import { pieceStyle } from './render/pieces-styles';
 import * as THREE from 'three';
 import { RULES, type PlayerId } from './engine/rules';
 import { TERRAIN_MODES, type TerrainMode } from './engine/terrain';
@@ -106,6 +107,8 @@ function newGame() {
     scoreTarget: (p) => $(`score-${p}`),
     onSfx: (e) => sound.play(e),
     takeElapsed: () => clock.take(),
+    // ?pieces=<id> : essayer un style de pièces proposé (défaut : style actuel).
+    buildPiece: pieceStyle(params.get('pieces')).build,
   });
   onStateChange();
   updateUrl();

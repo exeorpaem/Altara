@@ -5,6 +5,7 @@ import { PIECES, type PieceType, type PlayerId } from '../engine/rules';
 import type { BlockedAttack, GameEngine, Move, Piece } from '../engine/types';
 import { CELL, type BoardView } from './board';
 import { buildPieceMesh } from './pieces';
+import type { PieceBuilder } from './pieces-styles/common';
 import { PALETTE } from './palette';
 
 const STEP_MS = 150; // durée d'un pas
@@ -64,6 +65,8 @@ export interface GameViewOptions {
    * renvoie le temps de réflexion à décompter (l'animation n'est pas comptée).
    */
   takeElapsed?: () => number;
+  /** Constructeur des pièces (style alternatif via ?pieces=<id>) ; défaut : buildPieceMesh. */
+  buildPiece?: PieceBuilder;
 }
 
 export class GameView {
@@ -162,7 +165,7 @@ export class GameView {
 
   private makePieceView(p: Piece): PieceView {
     const holder = new THREE.Group();
-    const model = buildPieceMesh({ type: p.type, player: p.player });
+    const model = (this.o.buildPiece ?? buildPieceMesh)({ type: p.type, player: p.player });
     // L'avant du modèle est +Z local ; J1 sort vers −Z (rangée 9), J2 vers +Z.
     model.rotation.y = p.player === 1 ? Math.PI : 0;
     holder.add(model);
@@ -385,7 +388,7 @@ export class GameView {
     // Silhouette fantôme à l'arrivée (case d'appui pour une attaque, aucune pour une sortie)
     const ghostCell = move.kind === 'attack' ? move.path[move.path.length - 2] : move.path[move.path.length - 1];
     if (move.kind !== 'exit' && ghostCell) {
-      const ghost = buildPieceMesh({ type: piece.type, player: piece.player });
+      const ghost = (this.o.buildPiece ?? buildPieceMesh)({ type: piece.type, player: piece.player });
       ghost.rotation.y = piece.player === 1 ? Math.PI : 0;
       ghost.traverse((o) => {
         const mesh = o as THREE.Mesh;

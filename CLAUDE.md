@@ -38,6 +38,7 @@ Modes de terrain : random, mountains, valleys, highlands, woods, desert, volcano
 Débogage navigateur : ajouter `?debug` à l'URL expose `window.__altara`
 (`engine()`, `view()`, `board()`, `ai`, `sound`, `screenOf(row, col)`, `soundDemo()`).
 Paramètres d'URL : `?mode=woods&seed=KNVDF0&ai=5|local&cadence=10+0`.
+Styles de pièces proposés (`src/render/pieces-styles/`) : jeu `?pieces=glass|organic|celestial|origami` (défaut : actuel), vitrine `?style=<id>|all` (`Paramètres d'URL : `?mode=woods&seed=KNVDF0&ai=5|local&cadence=10+0`.view=topParamètres d'URL : `?mode=woods&seed=KNVDF0&ai=5|local&cadence=10+0`.spin=0`).
 
 ## Architecture (voir aussi README.md)
 
