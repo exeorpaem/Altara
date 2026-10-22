@@ -393,7 +393,7 @@ type Prop = 'pine' | 'oak' | 'fern' | 'mushroom' | 'rock' | 'snowrock' | 'stone'
 
 /** Éléments de décor par mode, avec leur poids de tirage. */
 const PROPS: Record<TerrainMode, [Prop, number][]> = {
-  volcano: [['blackrock', 4], ['rock', 1], ['stone', 1]],
+  volcano: [['blackrock', 3], ['rock', 1], ['stone', 1]],
   archipelago: [['palm', 4], ['rock', 2], ['grass', 1]],
   marsh: [['reed', 4], ['stump', 2], ['lily', 2], ['fern', 1]],
   canyon: [['strata', 4], ['shrub', 3], ['arch', 1], ['rock', 1]],
@@ -613,12 +613,16 @@ function lift(terrain: Terrain, x: number, z: number): number {
   return 1 + terrain.heights[row][col] * 0.12;
 }
 
-/** Accents propres au skin (15–25 % du décor autour) : le mode reste le thème principal. */
+/** Accents propres au mode / skin (15–25 % du décor autour) : le mode reste le thème principal. */
 const SKIN_PROPS: Record<string, [Prop, number][]> = {
   dunes: [['dryGrass', 3], ['bleached', 2]],
   prairie: [['wildflower', 4], ['butterfly', 2]],
   banquise: [['icicle', 3], ['icechunk', 2], ['drift', 3]],
-  crepuscule: [['lantern', 3], ['firefly', 3]],
+  foret: [['firefly', 3], ['lantern', 1], ['lichen', 3]],
+  volcan: [['bone', 2], ['lichen', 1], ['slabs', 3]],
+  lagon: [['wildflower', 2], ['bleached', 2], ['raked', 2]],
+  marais: [['firefly', 3], ['bamboo', 3], ['lichen', 2]],
+  canyon: [['dryGrass', 3], ['bleached', 3], ['slabs', 2]],
   ardoise: [['slabs', 3], ['lichen', 2]],
   jardin: [['raked', 2], ['stoneLantern', 2], ['bamboo', 3]],
 };
@@ -655,19 +659,59 @@ function decorateModeExtras(around: Acc, glow: Acc, sky: Acc, terrain: Terrain, 
   switch (terrain.mode) {
     case 'volcano': {
       // Coulées émissives douces le long du cône rocheux + quelques mares au pied, fumerolles autour.
-      for (let k = 0; k < 9; k++) {
-        const a = (k / 9) * Math.PI * 2 + rnd() * 0.5;
-        if (Math.abs(a % (Math.PI * 2) - Math.PI / 2) < 0.5) continue; // pas devant la caméra
-        for (let j = 0; j < 7; j++) {
-          const d = 0.2 + j * 0.65;
-          const R = 7.2 * (1 - (d + 0.5) / 6.2) * 0.95 + 0.3;
-          glow.add('box', [Math.cos(a) * R, -0.5 - d, Math.sin(a) * R], [0.42 - j * 0.03, 1.1, 0.42 - j * 0.03], -a, j % 2 ? pal.lava : pal.lavaGlow);
+      // Coulées continues : bandes sinueuses de segments très recouvrants (même teinte), cœur plus clair.
+      // Coulées sur la dalle : bande le long du bord puis chute sur la tranche (carrée), sur les 4 côtés.
+      for (let k = 0; k < 10; k++) {
+        const side = k % 4, u = -4 + rnd() * 8, phase = rnd() * 6;
+        const nx = side === 1 ? 1 : side === 3 ? -1 : 0, nz = side === 0 ? -1 : side === 2 ? 1 : 0;
+        const ry = -Math.atan2(nz, nx), tx = -nz, tz = nx; // normale sortante, tangente
+        const at = (r: number, lat: number): [number, number] => [nx * r + tx * (u + lat), nz * r + tz * (u + lat)];
+        for (let r = 5.0; r < 5.56 && side !== 2; r += 0.14) {
+          const [x, z] = at(r, Math.sin(r * 4 + phase) * 0.1);
+          around.add('box', [x, 0.0, z], [0.3, 0.03, 0.3], ry, pal.lava);
+          glow.add('box', [x, 0.02, z], [0.3, 0.012, 0.14], ry, pal.lavaGlow);
+        }
+        for (let y = 0; y > -0.62; y -= 0.14) {
+          const [x, z] = at(5.57, 0);
+          const [gx, gz] = at(5.62, 0);
+          around.add('box', [x, y - 0.14, z], [0.06, 0.2, 0.3], ry, pal.lava);
+          glow.add('box', [gx, y - 0.14, gz], [0.03, 0.2, 0.14], ry, pal.lavaGlow);
         }
       }
-      for (let k = 0; k < 5; k++) {
-        const a = rnd() * Math.PI * 2;
-        const dist = 12 + rnd() * 9;
-        glow.add('cyl7', [Math.cos(a) * dist, -2.5 + rnd() * 3, Math.sin(a) * dist], [1.0 + rnd() * 0.8, 0.08, 0.8], rnd() * 6, pal.lavaGlow);
+      // Rigoles bien visibles côté caméra (+Z) : sur la tranche de la dalle et en bordure (hors cases jouables).
+      for (let k = 0; k < 6; k++) {
+        const x0 = -4.2 + k * 1.7 + (rnd() - 0.5) * 0.5, ph = rnd() * 6;
+        for (let y = 0.02; y > -0.66; y -= 0.12) {
+          const x = x0 + Math.sin(y * 5 + ph) * 0.06;
+          around.add('box', [x, y - 0.1, 5.6], [0.26, 0.16, 0.06], 0, pal.lava);
+          glow.add('box', [x, y - 0.1, 5.65], [0.17, 0.16, 0.03], 0, pal.lavaGlow);
+        }
+      }
+      // Rigole continue le long du bord avant et des bords latéraux (bande libre de la dalle), bien lumineuse.
+      for (let x = -5.4; x <= 5.4; x += 0.3) {
+        const z = 5.28 + Math.sin(x * 1.3) * 0.06;
+        around.add('box', [x, 0.0, z], [0.36, 0.04, 0.2], 0, pal.lava);
+        glow.add('box', [x, 0.03, z], [0.34, 0.03, 0.11], 0, pal.lavaGlow);
+      }
+      for (let k = 0; k < 7; k++) { // braises sur la bande libre avant (z 5,05–5,5), entre les rochers
+        const x = -4.5 + k * 1.5 + rnd() * 0.5, z = 5.2 + rnd() * 0.25;
+        glow.add('box', [x, 0.02, z], [0.22, 0.02, 0.07], rnd() * 0.6 - 0.3, pal.lavaGlow);
+      }
+      const slope = Math.atan2(7.2 * 0.95 / 6.2, 1); // inclinaison du cône par rapport à la verticale
+      for (let k = 0; k < 14; k++) {
+        // 9 coulées réparties + 5 tournées vers la caméra (+Z, angle ≈ π/2) pour les flancs visibles
+        const a = k < 9 ? (k / 9) * Math.PI * 2 + rnd() * 0.3 : Math.PI / 2 + (k - 11.5) * 0.4 + rnd() * 0.15;
+        const phase = rnd() * 6, len = 4.2 + rnd() * 1.2;
+        const ca = Math.cos(a), sa = Math.sin(a);
+        for (let d = 0.15; d < len; d += 0.2) {
+          const t = d / len;
+          const R = 7.2 * (1 - (d + 0.5) / 6.2) * 0.95 + 0.3;
+          const lat = Math.sin(d * 1.7 + phase) * 0.22; // méandre
+          const x = ca * R - sa * lat, z = sa * R + ca * lat;
+          const w = 0.34 * (1 - t * 0.55); // s'affine vers le bas
+          around.add('box', [x, -0.5 - d - 0.12, z], [w * 0.5, 0.36, w], -a, pal.lava, 0, slope);
+          glow.add('box', [x + ca * 0.03, -0.5 - d - 0.12, z + sa * 0.03], [w * 0.5, 0.36, w * 0.45], -a, pal.lavaGlow, 0, slope);
+        }
       }
       for (let k = 0; k < 7; k++) {
         const a = (k / 7) * Math.PI * 2 + rnd() * 0.5;
@@ -745,6 +789,12 @@ function decorateIslets(acc: Acc, terrain: Terrain, pal: DecorPalette, skin: Ski
     const R = 0.7 + rnd() * 1.5;
     acc.add('cyl7', [x, y - 0.25, z], [R, 0.25, R], rnd() * 6, pal.islet);
     acc.add('cone6', [x, y - 0.25, z], [R * 0.95, R * 1.7, R * 0.95], Math.PI, rock, Math.PI);
+    if (terrain.mode === 'volcano') {
+      for (let e = 0; e < 3; e++) { // braises sur l'îlot
+        const ea = rnd() * Math.PI * 2, er = rnd() * R * 0.7;
+        acc.add('box', [x + Math.cos(ea) * er, y + 0.02, z + Math.sin(ea) * er], [0.2, 0.025, 0.07], ea, pal.lavaGlow);
+      }
+    }
     const n = 1 + Math.floor(rnd() * 4);
     for (let i = 0; i < n; i++) {
       const aa = rnd() * Math.PI * 2;

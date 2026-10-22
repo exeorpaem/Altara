@@ -44,7 +44,7 @@ function sections(): Section[] {
       open: true,
       html: `<p>Chaque joueur dirige 6 pièces posées sur un plateau en relief de ${RULES.board.size}×${RULES.board.size} cases.
         Il faut <b>faire sortir ses pièces par le bord adverse</b> : Corail (J1) part du bas et sort par le haut,
-        Lagon (J2) fait l'inverse. Corail commence.</p>
+        Lagon (J2) fait l'inverse. Le camp qui commence se choisit dans le panneau (« Qui commence »).</p>
         <p>On peut aussi <b>capturer</b> les pièces adverses pour les empêcher de passer.</p>`,
     },
     {

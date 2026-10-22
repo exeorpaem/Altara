@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as THREE from 'three';
-import { avoidCampColor, buildDecor, classifyCells, DECOR_TRIANGLE_BUDGET } from '../src/render/decor';
-import { SKINS } from '../src/render/skins';
+import { avoidCampColor, buildDecor, decorPalette, classifyCells, DECOR_TRIANGLE_BUDGET } from '../src/render/decor';
+import { MODE_SKIN, SKINS, skinById, skinForMode } from '../src/render/skins';
 import { PALETTE } from '../src/render/palette';
 import { generateTerrain, TERRAIN_MODES } from '../src/engine/terrain';
 
@@ -37,22 +37,20 @@ describe('classifyCells', () => {
 });
 
 describe('buildDecor', () => {
-  it('respecte le budget de triangles pour chaque mode × skin et se libère proprement', () => {
+  it('respecte le budget de triangles pour chaque mode avec sa palette et se libère proprement', () => {
     for (const m of TERRAIN_MODES) {
-      for (const skin of SKINS) {
-        const d = buildDecor(generateTerrain(m.id, 'KNVDF0'), skin);
-        expect(d.stats.triangles).toBeGreaterThan(500);
-        expect(d.stats.triangles).toBeLessThanOrEqual(DECOR_TRIANGLE_BUDGET);
-        expect(d.stats.drawCalls).toBeLessThanOrEqual(4);
-        d.dispose();
-      }
+      const d = buildDecor(generateTerrain(m.id, 'KNVDF0'), skinForMode(m.id));
+      expect(d.stats.triangles).toBeGreaterThan(500);
+      expect(d.stats.triangles).toBeLessThanOrEqual(DECOR_TRIANGLE_BUDGET);
+      expect(d.stats.drawCalls).toBeLessThanOrEqual(4);
+      d.dispose();
     }
   });
 
   it('est déterministe pour une même seed', () => {
     const t = generateTerrain('woods', 'ABC123');
-    const a = buildDecor(t, SKINS[1]);
-    const b = buildDecor(t, SKINS[1]);
+    const a = buildDecor(t, skinForMode('woods'));
+    const b = buildDecor(t, skinForMode('woods'));
     expect(a.stats.triangles).toBe(b.stats.triangles);
     const pa = (a.group.children[0] as THREE.Mesh).geometry.attributes.position.array;
     const pb = (b.group.children[0] as THREE.Mesh).geometry.attributes.position.array;
@@ -61,7 +59,7 @@ describe('buildDecor', () => {
 
   it('les détails des cases restent bas (≤ 0,15 au-dessus de la case) ', () => {
     const t = generateTerrain('valleys', 'KNVDF0');
-    const d = buildDecor(t, SKINS[0]);
+    const d = buildDecor(t, skinForMode('valleys'));
     const mesh = d.group.getObjectByName('decor-surface') as THREE.Mesh;
     const pos = mesh.geometry.attributes.position;
     const n = t.size;
@@ -85,5 +83,46 @@ describe('couleurs', () => {
     const hsl = { h: 0, s: 0, l: 0 };
     coral.getHSL(hsl);
     expect(hsl.s).toBeLessThan(0.3);
+  });
+});
+
+describe('palettes par mode', () => {
+  it('chaque mode a sa palette, et chaque palette sert un mode', () => {
+    for (const m of TERRAIN_MODES) expect(skinById(MODE_SKIN[m.id]).id).toBe(MODE_SKIN[m.id]);
+    expect(new Set(TERRAIN_MODES.map((m) => MODE_SKIN[m.id])).size).toBe(TERRAIN_MODES.length);
+    expect(SKINS.length).toBe(TERRAIN_MODES.length);
+  });
+
+  it('aucune couleur de palette (ni de décor) ne ressemble aux camps corail / lagon', () => {
+    const camps = (Object.values(PALETTE.camp) as string[]).map((c) => {
+      const h = { h: 0, s: 0, l: 0 };
+      new THREE.Color(c).getHSL(h);
+      return h.h;
+    });
+    const clash = (c: THREE.Color) => {
+      const h = { h: 0, s: 0, l: 0 };
+      c.getHSL(h);
+      return camps.some((ch) => Math.min(Math.abs(h.h - ch), 1 - Math.abs(h.h - ch)) < 0.05 && h.s > 0.3);
+    };
+    for (const m of TERRAIN_MODES) {
+      const sk = skinForMode(m.id);
+      const cols = [sk.low, sk.high, sk.hollow, sk.line, sk.slab, sk.rock]; // ciel / brume exclus : fonds clairs lointains;
+      for (const c of cols) expect(clash(new THREE.Color(c)), `${m.id} ${c}`).toBe(false);
+      const pal = decorPalette(sk, m.id);
+      for (const v of Object.values(pal)) for (const c of Array.isArray(v) ? v : [v]) expect(clash(c), `${m.id} décor`).toBe(false);
+    }
+  });
+
+  it('les creux du lagon restent loin du turquoise des pièces Lagon', () => {
+    const sk = skinForMode('archipelago');
+    const campL = new THREE.Color(PALETTE.camp[2]);
+    for (const c of [sk.hollow, sk.shallow!]) {
+      const col = new THREE.Color(c);
+      const d = Math.hypot(col.r - campL.r, col.g - campL.g, col.b - campL.b);
+      expect(d, c).toBeGreaterThan(0.35);
+      const h = { h: 0, s: 0, l: 0 };
+      col.getHSL(h);
+      expect(h.l).toBeLessThan(0.5);
+    }
   });
 });

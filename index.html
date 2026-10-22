@@ -43,6 +43,13 @@
         <small id="ai-level-hint">anticipe ta réponse (2 coups)</small>
       </div>
       <label>Seed de l'IA <input id="ai-seed" maxlength="12" spellcheck="false" placeholder="au hasard" /></label>
+      <label>Qui commence
+        <select id="first">
+          <option value="1" selected>Corail</option>
+          <option value="2">Lagon</option>
+          <option value="random">Au hasard</option>
+        </select>
+      </label>
       <label>Cadence (par joueur)
         <select id="cadence">
           <option value="10+0" selected>10 min (10+0)</option>
@@ -58,8 +65,6 @@
         <button id="btn-new-game" class="btn">Nouvelle partie</button>
         <button id="btn-new-seed" class="btn">Seed au hasard</button>
       </div>
-      <label>Skin du plateau</label>
-      <div class="skins" id="skins"></div>
       <label class="check"><input type="checkbox" id="follow" /> Caméra vers le joueur actif</label>
       <label>Son</label>
       <div class="sound-row">

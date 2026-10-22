@@ -37,7 +37,7 @@ Modes de terrain : random, mountains, valleys, highlands, woods, desert, volcano
 
 Débogage navigateur : ajouter `?debug` à l'URL expose `window.__altara`
 (`engine()`, `view()`, `board()`, `ai`, `sound`, `screenOf(row, col)`, `soundDemo()`).
-Paramètres d'URL : `?mode=woods&seed=KNVDF0&skin=dunes&ai=5|local&cadence=10+0`.
+Paramètres d'URL : `?mode=woods&seed=KNVDF0&ai=5|local&cadence=10+0`.
 
 ## Architecture (voir aussi README.md)
 
@@ -53,7 +53,7 @@ src/engine/   PUR TypeScript (ni Three.js ni DOM) — toute la logique de jeu
                 getPotentialMoves (inspection), getBlockedAttacks (anneau gris), serialize/load
   ai/evaluate.ts  évaluation + EVAL_WEIGHTS ; ai/search.ts  niveaux 1–10 (AI_LEVELS), alpha-bêta, TT
 src/ai/       Web Worker de l'IA + client (poignée de main, délai de garde, repli fil principal)
-src/render/   scène, plateau, pièces procédurales, game-view (sélection, marqueurs, animations), skins
+src/render/   scène, plateau, pièces procédurales, game-view (sélection, marqueurs, animations), skins (une palette par mode de terrain)
 src/ui/       CSS, pendule (clock.ts), sound design Web Audio (sound.ts), fiche de règles (rules-panel.ts)
 src/main.ts   page de jeu (branche tout ensemble)
 scripts/selfplay.ts   IA contre IA sans rendu, rapport dans reports/
@@ -112,7 +112,7 @@ implémentation des règles (core/actions) sert à l'interface ET à l'IA.
 
 ## Fait (résumé)
 
-Moteur complet et testé (80 tests) · rendu low-poly pastel, 6 skins, île flottante · sélection,
+Moteur complet et testé (80 tests) · rendu low-poly pastel, palette (skin) imposée par le terrain (10 palettes), île flottante · sélection,
 marqueurs, aperçu de chemin, animations · inspection des pièces adverses (anneaux creux) · anneau gris
 des attaques refusées avec explication · IA 1 à 10 dans un Web Worker · pendule · sound design
 synthétisé (une gamme pentatonique, voix par camp, ambiance) · bouton Annuler / Ctrl+Z · clic droit =

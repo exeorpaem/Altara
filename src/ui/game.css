@@ -26,14 +26,6 @@ details.tr-panel summary::after { content: ' ▾'; color: var(--ink-soft); }
 details.tr-panel:not([open]) summary::after { content: ' ▸'; }
 details.tr-panel[open] summary { margin-bottom: 4px; }
 .tr-panel .check { flex-direction: row; align-items: center; gap: 6px; }
-.skins { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-.skin-btn {
-  font: inherit; font-size: 11px; color: var(--ink); cursor: pointer; padding: 0 0 4px; border-radius: 10px;
-  border: 2px solid transparent; background: rgba(255,255,255,0.7); overflow: hidden; display: flex; flex-direction: column; gap: 3px;
-}
-.skin-btn .sw { height: 26px; display: flex; }
-.skin-btn .sw span { flex: 1; }
-.skin-btn.active { border-color: var(--ink); }
 
 .legend {
   position: fixed; left: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 4px;

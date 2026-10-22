@@ -55,6 +55,7 @@ function chamferedBlock(size: number, height: number, chamfer: number, bevel: nu
 
 /** Couleur d'un niveau : s'éclaircit avec l'altitude, avec une nuance propre au skin dans les creux. */
 function levelColor(level: number, maxLevel: number, skin: Skin): THREE.Color {
+  if (skin.shallow && level <= 1) return new THREE.Color(level === 0 ? skin.hollow : skin.shallow);
   const t = level / Math.max(1, maxLevel);
   const c = new THREE.Color(skin.low).lerp(new THREE.Color(skin.high), t);
   const hollow = Math.max(0, 1 - level / 2) * skin.hollowMix; // niveaux 0 et 1 seulement
@@ -95,6 +96,7 @@ export function buildBoard(terrain: Terrain, maxLevel = 6, skin: Skin = SKINS[0]
 
   const coral = new THREE.Color(PALETTE.camp[1]);
   const lagoon = new THREE.Color(PALETTE.camp[2]);
+  const neutral = new THREE.Color('#F4EFEA');
   const m = new THREE.Matrix4();
   let i = 0;
   let li = 0;
@@ -110,8 +112,12 @@ export function buildBoard(terrain: Terrain, maxLevel = 6, skin: Skin = SKINS[0]
         const col = levelColor(level, maxLevel, skin);
         // Rangées d'arrivée : le bloc du dessus prend la couleur du camp qui doit y sortir.
         // J1 (corail) sort par la dernière rangée, J2 (lagon) par la rangée 0.
-        if (level === h && r === size - 1) col.lerp(coral, 0.5);
-        if (level === h && r === 0) col.lerp(lagoon, 0.5);
+        // Mélange sur une base claire neutre (un peu du sol pour garder le relief) : la teinte du camp
+        // reste reconnaissable quelle que soit la palette (pas de violet ni de gris).
+        if (level === h && (r === size - 1 || r === 0)) {
+          const camp = r === 0 ? lagoon : coral;
+          col.lerp(neutral, 0.7).lerp(camp, 0.72);
+        }
         blocks.setColorAt(i, col);
         instanceCell.push(r * 100 + c);
         i++;
