@@ -43,12 +43,13 @@ export function initialPieces(size: number): Piece[] {
   return pieces;
 }
 
-export function newGameState(terrain: Terrain, tc?: TimeControl | null): GameState {
+/** @param first joueur qui joue le premier coup (Corail par défaut) */
+export function newGameState(terrain: Terrain, tc?: TimeControl | null, first: PlayerId = 1): GameState {
   return {
     clock: makeClock(tc),
     terrain,
     pieces: initialPieces(terrain.size),
-    current: 1,
+    current: first,
     turn: 0,
     score: { 1: 0, 2: 0 },
     history: [],
@@ -102,8 +103,8 @@ export class LocalEngine implements GameEngine {
     this.state.result ??= null;
   }
 
-  static create(mode: TerrainMode, seed: string, tc?: TimeControl | null): LocalEngine {
-    return new LocalEngine(newGameState(generateTerrain(mode, seed), tc));
+  static create(mode: TerrainMode, seed: string, tc?: TimeControl | null, first: PlayerId = 1): LocalEngine {
+    return new LocalEngine(newGameState(generateTerrain(mode, seed), tc, first));
   }
 
   getState(): GameState {

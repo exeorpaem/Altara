@@ -82,12 +82,12 @@ function newGame() {
   const mode = modeEl.value as TerrainMode;
   const seed = seedEl.value.trim().toUpperCase() || randomSeed();
   seedEl.value = seed;
-  engine = LocalEngine.create(mode, seed, timeControl());
+  engine = LocalEngine.create(mode, seed, timeControl(), firstPlayer());
   clock.reset();
   ai.cancel();
   gameToken++;
   thinking = false; // une réflexion de l'IA interrompue ne doit pas bloquer la nouvelle partie
-  lastCurrent = 1;
+  lastCurrent = engine.getState().current;
   endPlayed = false;
   seenHistory = 0;
   hideEnd();
@@ -370,14 +370,30 @@ $('end-new').onclick = () => {
 $('end-replay').onclick = newGame;
 opponentEl.onchange = () => {
   refreshLevelUi();
+  refreshFirstLabels();
   updateUrl();
   // Si c'est désormais au tour de l'IA, elle joue.
   if (!thinking && engine && !engine.getState().result && aiLevel() && engine.getState().current === AI_PLAYER) void aiTurn();
 };
 
+// Qui commence : Corail, Lagon ou tiré au sort à chaque nouvelle partie.
+const firstEl = $<HTMLSelectElement>('first');
+if (['1', '2', 'random'].includes(params.get('first') ?? '')) firstEl.value = params.get('first')!;
+function firstPlayer(): PlayerId {
+  if (firstEl.value === 'random') return Math.random() < 0.5 ? 1 : 2;
+  return firstEl.value === '2' ? 2 : 1;
+}
+/** Contre l'IA, on précise qui est qui dans le menu. */
+function refreshFirstLabels() {
+  const vsAi = opponentEl.value !== 'local';
+  firstEl.options[0].text = vsAi ? 'Corail (toi)' : 'Corail';
+  firstEl.options[1].text = vsAi ? "Lagon (l'IA)" : 'Lagon';
+}
+firstEl.onchange = newGame; // s'applique à une nouvelle partie
+
 function updateUrl() {
   try {
-    history.replaceState(null, '', `?mode=${modeEl.value}&seed=${seedEl.value}&ai=${opponentEl.value === 'local' ? 'local' : levelEl.value}&cadence=${encodeURIComponent(cadenceEl.value)}`);
+    history.replaceState(null, '', `?mode=${modeEl.value}&seed=${seedEl.value}&ai=${opponentEl.value === 'local' ? 'local' : levelEl.value}&cadence=${encodeURIComponent(cadenceEl.value)}&first=${firstEl.value}`);
   } catch {
     /* aperçu hors serveur : sans importance */
   }
@@ -450,6 +466,7 @@ if (window.innerWidth < 760) ($('panel') as HTMLDetailsElement).open = false;
 
 setupRulesPanel($('btn-rules'));
 applySkin(skin);
+refreshFirstLabels();
 newGame();
 
 // Accès de débogage (tests automatisés) : ?debug dans l'URL.
