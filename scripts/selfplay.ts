@@ -14,7 +14,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { LocalEngine } from '../src/engine/engine';
 import { AI_LEVELS, chooseMove, levelNumber, type AiLevel } from '../src/engine/ai/search';
 import { TERRAIN_MODES, type TerrainMode } from '../src/engine/terrain';
-import type { PlayerId } from '../src/engine/rules';
+import { RULES, type PlayerId } from '../src/engine/rules';
 
 type Level = AiLevel | number;
 
@@ -24,6 +24,8 @@ interface Task {
   mode: TerrainMode;
   seed: string;
   levels: Record<PlayerId, Level>;
+  /** Camp qui joue le premier coup. */
+  first: PlayerId;
 }
 
 interface GameReport {
@@ -31,6 +33,7 @@ interface GameReport {
   group: Task['group'];
   mode: TerrainMode;
   levels: Record<PlayerId, Level>;
+  first: PlayerId;
   winner: PlayerId | 'draw';
   reason: string;
   turns: number;
@@ -49,6 +52,11 @@ const ONLY = opt('only', 'all');
 const HARD_MS = Number(opt('hard-ms', '1500'));
 const JOBS = Number(opt('jobs', String(Math.max(1, cpus().length))));
 const WORKER = opt('worker', '');
+/** Qui commence : 1, 2, ou « alternate » (une partie sur deux avec J2 ; défaut). */
+const FIRST = opt('first', 'alternate');
+if (!['1', '2', 'alternate'].includes(FIRST)) throw new Error(`--first : 1, 2 ou alternate (reçu « ${FIRST} »)`);
+/** Premier joueur de la partie n°i d'un groupe (parties d'une même seed groupées par paires). */
+const firstFor = (i: number): PlayerId => (FIRST === 'alternate' ? ((i % 2 === 0 ? 1 : 2) as PlayerId) : (Number(FIRST) as PlayerId));
 /** Échelle : chaque niveau contre le niveau inférieur, ex. --ladder 1-3,3-5,5-7,7-9,9-10 --ladder-games 8 */
 const LADDER = opt('ladder', '');
 const LADDER_GAMES = Number(opt('ladder-games', '8'));
@@ -65,6 +73,7 @@ function plan(): Task[] {
           mode: TERRAIN_MODES[Math.floor(i / 2) % TERRAIN_MODES.length].id,
           seed: `LAD-${pair}-${Math.floor(i / 2)}`,
           levels: i % 2 === 0 ? { 1: hi, 2: lo } : { 1: lo, 2: hi },
+          first: firstFor(Math.floor(i / 2)),
         });
     }
   if (ONLY !== 'equity' && ONLY !== 'ladder')
@@ -77,17 +86,19 @@ function plan(): Task[] {
         mode: TERRAIN_MODES[Math.floor(i / 2) % TERRAIN_MODES.length].id,
         seed: `DUEL-${Math.floor(i / 2)}`,
         levels: hardFirst ? { 1: 'hard', 2: 'medium' } : { 1: 'medium', 2: 'hard' },
+        first: firstFor(Math.floor(i / 2)),
       });
     }
   if (ONLY !== 'duel' && ONLY !== 'ladder')
     for (const m of TERRAIN_MODES)
       for (let i = 0; i < EQUITY; i++)
-        tasks.push({ id: tasks.length, group: 'equity', mode: m.id, seed: `EQ-${m.id}-${i}`, levels: { 1: 'medium', 2: 'medium' } });
+        // En alternance, deux parties consécutives partagent le même terrain (seed) avec un premier joueur différent.
+        tasks.push({ id: tasks.length, group: 'equity', mode: m.id, seed: `EQ-${m.id}-${FIRST === 'alternate' ? Math.floor(i / 2) : i}`, levels: { 1: 'medium', 2: 'medium' }, first: firstFor(i) });
   return tasks;
 }
 
 function playGame(t: Task): GameReport {
-  const eng = LocalEngine.create(t.mode, t.seed);
+  const eng = LocalEngine.create(t.mode, t.seed, null, t.first);
   const hardMs: number[] = [];
   let guard = 0;
   while (!eng.getState().result && guard++ < 1000) {
@@ -99,7 +110,7 @@ function playGame(t: Task): GameReport {
     eng.play(r.move); // les passes éventuelles sont jouées automatiquement par le moteur
   }
   const s = eng.getState();
-  return { id: t.id, group: t.group, mode: t.mode, levels: t.levels, winner: s.result!.winner, reason: s.result!.reason, turns: s.turn, hardMs };
+  return { id: t.id, group: t.group, mode: t.mode, levels: t.levels, first: t.first, winner: s.result!.winner, reason: s.result!.reason, turns: s.turn, hardMs };
 }
 
 // --- Processus « ouvrier » -----------------------------------------------------
@@ -203,26 +214,61 @@ if (lad.length) {
 
 const eq = results.filter((r) => r.group === 'equity');
 if (eq.length) {
+  // Intervalle de Wilson à 95 % pour une proportion k/n (plus fiable que la normale sur petits échantillons).
+  const wilson = (k: number, n: number): [number, number] => {
+    if (!n) return [0, 1];
+    const z = 1.96, p = k / n, d = 1 + (z * z) / n;
+    const c = (p + (z * z) / (2 * n)) / d;
+    const h = (z * Math.sqrt((p * (1 - p)) / n + (z * z) / (4 * n * n))) / d;
+    return [c - h, c + h];
+  };
+  const pc = (x: number) => `${(100 * x).toFixed(0)}`;
+  // Une ligne de stats pour un ensemble de parties : « premier joueur » = celui qui a joué le 1er coup.
+  const stat = (g: GameReport[]) => {
+    const wf = g.filter((r) => r.winner === r.first).length;
+    const ws = g.filter((r) => r.winner !== 'draw' && r.winner !== r.first).length;
+    const d = g.length - wf - ws;
+    const [lo, hi] = wilson(wf, wf + ws);
+    // Signalé : > 60 % ou < 40 % pour un camp, ou intervalle qui exclut 50 %.
+    const share = wf + ws ? wf / (wf + ws) : 0.5;
+    const flag = share > 0.6 || share < 0.4 || lo > 0.5 || hi < 0.5;
+    return { wf, ws, d, share, lo, hi, flag };
+  };
+  const dur = (g: GameReport[]) => (g.reduce((a, r) => a + r.turns, 0) / g.length).toFixed(0);
   out(`## Équité des terrains — Moyen contre Moyen`);
   out();
-  out(`| Mode | Parties | J1 gagne | J2 gagne | Nulles | J1 (hors nulles) | Fins | Durée moy. | |`);
-  out(`|---|---|---|---|---|---|---|---|---|`);
+  out(`Premier joueur = camp qui joue le 1er coup (${FIRST === 'alternate' ? 'alterné, même terrain pour chaque paire de parties' : `toujours J${FIRST}`}). IC = intervalle de Wilson à 95 % sur la part du premier joueur (hors nulles).`);
+  out();
+  out(`| Mode | Parties | 1er gagne | 2e gagne | Nulles | 1er (hors nulles) | IC 95 % | J1 gagne | J2 gagne | Fins | Durée moy. | |`);
+  out(`|---|---|---|---|---|---|---|---|---|---|---|---|`);
   const flagged: string[] = [];
+  const row = (label: string, g: GameReport[]) => {
+    const st = stat(g);
+    if (st.flag && label !== 'Total') flagged.push(`${label} (1er ${pct(st.wf, st.wf + st.ws)})`);
+    const j1 = g.filter((r) => r.winner === 1).length;
+    const j2 = g.filter((r) => r.winner === 2).length;
+    out(
+      `| ${label} | ${g.length} | ${st.wf} | ${st.ws} | ${st.d} | ${pct(st.wf, st.wf + st.ws)} | ${pc(st.lo)}–${pc(st.hi)} % | ${j1} | ${j2} | ${reasons(g)} | ${dur(g)} | ${st.flag ? '⚠️' : ''} |`,
+    );
+  };
   for (const m of TERRAIN_MODES) {
     const g = eq.filter((r) => r.mode === m.id);
-    if (!g.length) continue;
-    const w1 = g.filter((r) => r.winner === 1).length;
-    const w2 = g.filter((r) => r.winner === 2).length;
-    const d = g.length - w1 - w2;
-    const share1 = w1 + w2 ? w1 / (w1 + w2) : 0.5;
-    const flag = share1 > 0.6 || share1 < 0.4;
-    if (flag) flagged.push(`${m.label} (${share1 > 0.6 ? 'J1' : 'J2'} ${pct(Math.max(w1, w2), w1 + w2)})`);
-    out(
-      `| ${m.label} | ${g.length} | ${pct(w1, g.length)} | ${pct(w2, g.length)} | ${pct(d, g.length)} | ${pct(w1, w1 + w2)} | ${reasons(g)} | ${(g.reduce((a, r) => a + r.turns, 0) / g.length).toFixed(0)} | ${flag ? '⚠️' : ''} |`,
-    );
+    if (g.length) row(m.label, g);
   }
+  row('Total', eq);
   out();
-  out(flagged.length ? `⚠️ Déséquilibre (> 60 % des parties décisives) : ${flagged.join(', ')}` : `✅ Aucun mode ne dépasse 60 % pour un camp (parties décisives).`);
+  out(flagged.length ? `⚠️ Déséquilibre (> 60 %, < 40 % ou IC excluant 50 %) : ${flagged.join(', ')}` : `✅ Aucun mode ne dépasse 60 % pour un camp (parties décisives).`);
+  out();
+  // Effet du coup de réponse final : parties allées à la limite de coups (fin « turnLimit » ou équivalent).
+  const limit = eq.filter((r) => r.reason === 'moveLimit');
+  out(`Parties arrivées à la limite de coups (${RULES.maxTurns}) : ${limit.length}/${eq.length} ; parmi elles, le premier joueur gagne ${limit.filter((r) => r.winner === r.first).length}, le second ${limit.filter((r) => r.winner !== 'draw' && r.winner !== r.first).length}, nulles ${limit.filter((r) => r.winner === 'draw').length}.`);
+  for (const f of [1, 2] as PlayerId[]) {
+    const g = eq.filter((r) => r.first === f);
+    if (!g.length) continue;
+    const w = g.filter((r) => r.winner === f).length;
+    const l = g.filter((r) => r.winner !== 'draw' && r.winner !== f).length;
+    out(`Quand J${f} commence (${g.length} parties) : J${f} gagne ${w}, adversaire ${l}, nulles ${g.length - w - l}.`);
+  }
 }
 out();
 out(`Durée totale : ${((Date.now() - t0) / 1000).toFixed(0)} s`);
