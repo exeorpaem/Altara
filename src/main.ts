@@ -1,7 +1,7 @@
 // Page principale (aperçu jouable) : terrain, pièces, sélection et déplacements.
 import * as THREE from 'three';
 import { RULES, type PlayerId } from './engine/rules';
-import { TERRAIN_MODES, type TerrainMode } from './engine/terrain';
+import { TERRAIN_MODES, generateTerrain, type TerrainMode } from './engine/terrain';
 import { randomSeed } from './engine/random';
 import { LocalEngine } from './engine/engine';
 import { buildBoard, type BoardView } from './render/board';
@@ -17,6 +17,7 @@ import { GameClock, formatClock } from './ui/clock';
 import type { TimeControl } from './engine/engine';
 import { AI_LEVELS, levelNumber, type AiLevel } from './engine/ai/search';
 import { setupRulesPanel } from './ui/rules-panel';
+import { MODE_BLURB, drawTerrainPreview } from './ui/home';
 import type { GameState } from './engine/types';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -30,9 +31,10 @@ scene.add(clouds.group);
 const modeEl = $<HTMLSelectElement>('mode');
 const seedEl = $<HTMLInputElement>('seed');
 for (const m of TERRAIN_MODES) modeEl.add(new Option(m.label, m.id));
+const homeEl = $('home');
 
 const params = new URLSearchParams(location.search);
-modeEl.value = params.get('mode') ?? 'random';
+modeEl.value = TERRAIN_MODES.some((m) => m.id === params.get('mode')) ? params.get('mode')! : 'random';
 seedEl.value = (params.get('seed') ?? randomSeed()).toUpperCase();
 
 // Le paramètre d'URL `skin=` des anciens liens est ignoré : le skin découle du terrain.
@@ -83,6 +85,8 @@ function newGame() {
   const seed = seedEl.value.trim().toUpperCase() || randomSeed();
   seedEl.value = seed;
   engine = LocalEngine.create(mode, seed, timeControl(), firstPlayer());
+  homeEl.hidden = true;
+  document.body.classList.remove('at-home');
   clock.reset();
   ai.cancel();
   gameToken++;
@@ -169,7 +173,6 @@ function timeControl(): TimeControl | null {
   if (!(m > 0) || !(inc >= 0)) return { minutes: 10, incrementSec: 0 };
   return { minutes: m, incrementSec: inc };
 }
-cadenceEl.onchange = newGame; // une nouvelle cadence s'applique à une nouvelle partie
 let lastTickSec = -1;
 
 /** Rafraîchit l'affichage des pendules et fait tomber le drapeau à 0. */
@@ -230,10 +233,19 @@ function refreshLevelUi() {
   $('ai-level-name').textContent = cfg.name;
   $('ai-level-hint').textContent = cfg.hint;
   $('ai-level-box').hidden = opponentEl.value === 'local';
+  liveLevelEl.value = levelEl.value;
+  $('ai-level-live-num').textContent = levelEl.value;
+  $('live-level-box').hidden = opponentEl.value === 'local';
 }
+const liveLevelEl = $<HTMLInputElement>('ai-level-live');
 levelEl.oninput = () => {
   refreshLevelUi();
   updateUrl(); // s'applique dès le prochain coup de l'IA
+};
+// Le curseur du panneau de jeu règle le même niveau que celui de l'accueil.
+liveLevelEl.oninput = () => {
+  levelEl.value = liveLevelEl.value;
+  levelEl.oninput!(new Event('input'));
 };
 refreshLevelUi();
 
@@ -371,9 +383,6 @@ $('end-replay').onclick = newGame;
 opponentEl.onchange = () => {
   refreshLevelUi();
   refreshFirstLabels();
-  updateUrl();
-  // Si c'est désormais au tour de l'IA, elle joue.
-  if (!thinking && engine && !engine.getState().result && aiLevel() && engine.getState().current === AI_PLAYER) void aiTurn();
 };
 
 // Qui commence : Corail, Lagon ou tiré au sort à chaque nouvelle partie.
@@ -389,7 +398,6 @@ function refreshFirstLabels() {
   firstEl.options[0].text = vsAi ? 'Corail (toi)' : 'Corail';
   firstEl.options[1].text = vsAi ? "Lagon (l'IA)" : 'Lagon';
 }
-firstEl.onchange = newGame; // s'applique à une nouvelle partie
 
 function updateUrl() {
   try {
@@ -399,13 +407,73 @@ function updateUrl() {
   }
 }
 
-$('btn-new-game').onclick = newGame;
-$('btn-new-seed').onclick = () => {
-  seedEl.value = randomSeed();
+// --- Accueil -----------------------------------------------------------------------
+const chipsEl = $('terrain-chips');
+for (const m of TERRAIN_MODES) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'chip';
+  b.dataset.mode = m.id;
+  b.textContent = m.label;
+  b.setAttribute('role', 'radio');
+  b.onclick = () => {
+    modeEl.value = m.id;
+    refreshHome();
+  };
+  chipsEl.appendChild(b);
+}
+let previewTimer = 0;
+/** Met l'accueil à jour : puces, description, mini-aperçu et plateau 3D visible derrière la fiche. */
+function refreshHome() {
+  const mode = modeEl.value as TerrainMode;
+  for (const b of chipsEl.children) b.setAttribute('aria-checked', String((b as HTMLElement).dataset.mode === mode));
+  $('terrain-desc').textContent = MODE_BLURB[mode];
+  const seed = seedEl.value.trim().toUpperCase() || 'HASARD';
+  drawTerrainPreview($<HTMLCanvasElement>('terrain-preview'), generateTerrain(mode, seed).heights, skinForMode(mode), RULES.board.maxHeight);
+  clearTimeout(previewTimer);
+  previewTimer = window.setTimeout(previewBoard, 150);
+}
+/** Plateau d'ambiance derrière l'accueil (aucune partie n'est lancée). */
+function previewBoard() {
+  if (view || homeEl.hidden) return;
+  const mode = modeEl.value as TerrainMode;
+  engine = LocalEngine.create(mode, seedEl.value.trim().toUpperCase() || 'HASARD', null, 1);
+  applySkin(skinForMode(mode));
+  rebuildBoard();
+}
+function showHome() {
+  ai.cancel();
+  gameToken++;
+  thinking = false;
+  clock.reset();
+  hideEnd();
+  view?.dispose();
+  view = null;
+  homeEl.hidden = false;
+  document.body.classList.add('at-home');
+  try {
+    history.replaceState(null, '', params.has('debug') ? '?debug' : location.pathname);
+  } catch {
+    /* sans importance */
+  }
+  if (!seedEl.value.trim()) seedEl.value = randomSeed();
+  refreshHome();
+  rig.defaultView(1);
+}
+$('btn-play').onclick = () => {
+  if (!seedEl.value.trim()) seedEl.value = randomSeed();
   newGame();
 };
-modeEl.onchange = newGame;
-seedEl.onkeydown = (e) => e.key === 'Enter' && newGame();
+$('btn-home-rules').onclick = () => $('btn-rules').click();
+$('btn-menu').onclick = showHome;
+$('end-menu').onclick = showHome;
+$('btn-new-seed').onclick = () => {
+  seedEl.value = randomSeed();
+  refreshHome();
+};
+modeEl.onchange = refreshHome;
+seedEl.oninput = refreshHome;
+seedEl.onkeydown = (e) => e.key === 'Enter' && $('btn-play').click();
 // --- Annuler un coup ------------------------------------------------------------
 const undoBtn = $<HTMLButtonElement>('btn-undo');
 const endUndoBtn = $<HTMLButtonElement>('end-undo');
@@ -462,12 +530,14 @@ $('btn-default').onclick = () => rig.defaultView(engine.getState().current);
 $('btn-top').onclick = () => rig.topView();
 $<HTMLInputElement>('follow').onchange = (e) => (e.target as HTMLInputElement).checked && rig.defaultView(engine.getState().current);
 // Sur petit écran, le panneau démarre replié.
-if (window.innerWidth < 760) ($('panel') as HTMLDetailsElement).open = false;
+if (window.innerWidth < 700) ($('panel') as HTMLDetailsElement).open = false;
 
 setupRulesPanel($('btn-rules'));
 applySkin(skin);
 refreshFirstLabels();
-newGame();
+// Lien partagé (mode, seed, adversaire…) : on lance la partie directement ; sinon, accueil.
+if (['mode', 'seed', 'ai', 'cadence', 'first'].some((k) => params.has(k))) newGame();
+else showHome();
 
 // Accès de débogage (tests automatisés) : ?debug dans l'URL.
 if (params.has('debug')) {
