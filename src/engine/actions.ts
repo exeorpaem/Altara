@@ -100,11 +100,11 @@ export function pieceActions(
     if (cost <= budget) out.push({ kind: K_EXIT, piece: p, dest: c, cost, target: -1, via: -1 });
   }
 
-  // --- Attaques : coût minimal par cible, puis légalité selon les forces ---
-  // Les cases sont parcourues par coût croissant : la première approche trouvée
-  // pour une cible n'est pas forcément la moins chère (l'entrée dépend du dénivelé),
-  // on compare donc explicitement.
+  // --- Attaques : pour chaque cible, la case d'appui qui donne la meilleure attaque ---
+  // (la hauteur et la charge dépendent de la case d'appui). À attaque égale, la moins chère.
+  // Les attaques trop faibles (attaque < défense) ne sont pas proposées.
   const firstAttack = out.length;
+  const bestAttack: number[] = [];
   for (let i = 0; i < count; i++) {
     const a = cells[i];
     for (let k = 0; k < 4; k++) {
@@ -115,17 +115,22 @@ export function pieceActions(
       const entry = opts.attackEntryUsesHeight ? stepCost(heights[a], heights[t]) : 1;
       const cost = dist[a] + entry;
       if (cost > budget) continue;
+      const r = combat(s, p, q, cost, a);
+      if (r.attack < r.defense) continue;
       let j = firstAttack;
       while (j < out.length && out[j].target !== q) j++;
-      if (j === out.length) out.push({ kind: K_ATTACK, piece: p, dest: t, cost, target: q, via: a });
-      else if (cost < out[j].cost) (out[j].cost = cost), (out[j].via = a);
+      if (j === out.length) {
+        out.push({ kind: K_ATTACK, piece: p, dest: t, cost, target: q, via: a });
+        bestAttack.push(r.attack);
+      } else {
+        const b = j - firstAttack;
+        if (r.attack > bestAttack[b] || (r.attack === bestAttack[b] && cost < out[j].cost)) {
+          out[j].cost = cost;
+          out[j].via = a;
+          bestAttack[b] = r.attack;
+        }
+      }
     }
-  }
-  // On retire les attaques trop faibles (attaque < défense) : elles ne sont pas proposées.
-  for (let j = out.length - 1; j >= firstAttack; j--) {
-    const a = out[j];
-    const r = combat(s, p, a.target, a.cost);
-    if (r.attack < r.defense) out.splice(j, 1);
   }
 
   // --- Coups spéciaux de l'Explorateur : case d'arrivée vide, relief ignoré ---
@@ -147,9 +152,9 @@ export function pieceActions(
 export interface BlockedAttackAction {
   piece: number;
   target: number;
-  /** Case d'appui (voisine de la cible) du chemin le moins cher. */
+  /** Case d'appui (voisine de la cible) : la meilleure pour 'weak', la moins chère pour 'range'. */
   via: number;
-  /** Coût du chemin le moins cher jusqu'à la cible, entrée sur sa case comprise. */
+  /** Coût du chemin jusqu'à la cible via cette case d'appui, entrée sur sa case comprise. */
   cost: number;
   /** 'weak' : à portée mais attaque < défense ; 'range' : case voisine atteinte, mais l'entrée dépasse le Mouvement. */
   reason: 'weak' | 'range';
@@ -173,7 +178,9 @@ export function blockedAttacks(
   const budget = MOVEMENT[s.ptype[p]];
   reach(s, s.ppos[p], budget, buf);
   const { dist, cells, count } = buf;
-  const best = new Map<number, { via: number; cost: number }>();
+  // Par cible : l'approche la moins chère (pour 'range') et la meilleure attaque à portée (pour 'weak').
+  const cheapest = new Map<number, { via: number; cost: number }>();
+  const best = new Map<number, { via: number; cost: number; attack: number; defense: number }>();
   for (let i = 0; i < count; i++) {
     const a = cells[i];
     for (let k = 0; k < 4; k++) {
@@ -182,17 +189,20 @@ export function blockedAttacks(
       const q = s.board[t];
       if (q < 0 || s.pplayer[q] === player) continue;
       const cost = dist[a] + (opts.attackEntryUsesHeight ? stepCost(heights[a], heights[t]) : 1);
-      const prev = best.get(q);
-      if (!prev || cost < prev.cost) best.set(q, { via: a, cost });
+      const prev = cheapest.get(q);
+      if (!prev || cost < prev.cost) cheapest.set(q, { via: a, cost });
+      if (cost > budget) continue;
+      const r = combat(s, p, q, cost, a);
+      const b = best.get(q);
+      if (!b || r.attack > b.attack || (r.attack === b.attack && cost < b.cost))
+        best.set(q, { via: a, cost, attack: r.attack, defense: r.defense });
     }
   }
   const out: BlockedAttackAction[] = [];
-  for (const [q, { via, cost }] of best) {
-    if (cost > budget) out.push({ piece: p, target: q, via, cost, reason: 'range' });
-    else {
-      const r = combat(s, p, q, cost);
-      if (r.attack < r.defense) out.push({ piece: p, target: q, via, cost, reason: 'weak' });
-    }
+  for (const [q, c] of cheapest) {
+    const b = best.get(q);
+    if (!b) out.push({ piece: p, target: q, via: c.via, cost: c.cost, reason: 'range' });
+    else if (b.attack < b.defense) out.push({ piece: p, target: q, via: b.via, cost: b.cost, reason: 'weak' });
   }
   return out;
 }
@@ -214,6 +224,20 @@ function byScore(s: CoreState, reason: GameResult['reason']): GameResult {
   const a = s.score[1];
   const b = s.score[2];
   return { winner: a > b ? 1 : b > a ? 2 : 'draw', reason };
+}
+
+/** Un joueur sans aucune pièce sur le plateau a perdu (null si les deux en ont encore). */
+function eliminationResult(s: CoreState): GameResult | null {
+  let on1 = 0;
+  let on2 = 0;
+  for (let p = 0; p < s.ptype.length; p++) {
+    if (s.pstatus[p] !== ST_BOARD) continue;
+    if (s.pplayer[p] === 1) on1++;
+    else on2++;
+  }
+  if (on1 && on2) return null;
+  // Les deux à zéro est impossible : un coup ne retire qu'une pièce à la fois.
+  return { winner: on1 ? 1 : 2, reason: 'eliminated' };
 }
 
 /**
@@ -315,8 +339,9 @@ export function makeAction(s: CoreState, a: Action): Undo {
       s.exits++;
       s.exited[player]++;
       if (s.exits === 1) s.firstExitType = s.ptype[p];
-      // Une Sentinelle qui sort gagne tout de suite ; sinon, la 2e sortie d'un même joueur gagne.
-      if (s.ptype[p] === SENTINEL && RULES.end.sentinelExitWins) {
+      // Une Sentinelle qui sort la première de la partie gagne tout de suite ;
+      // sinon, la 2e sortie d'un même joueur gagne.
+      if (s.ptype[p] === SENTINEL && sentinelExitWinsNow(s.exits - 1)) {
         s.result = { winner: player, reason: 'sentinel' };
       } else if (s.exited[player] >= RULES.end.exitsToWin) {
         s.result = { winner: player, reason: 'secondExit' };
@@ -326,6 +351,7 @@ export function makeAction(s: CoreState, a: Action): Undo {
     case K_PASS:
       break;
   }
+  if (!s.result && RULES.end.noPiecesLoses && a.kind !== K_PASS) s.result = eliminationResult(s);
   s.turn++;
   s.current = s.current === 1 ? 2 : 1;
   s.h1 ^= Z_SIDE[0];
@@ -371,11 +397,22 @@ export function unmakeAction(s: CoreState, u: Undo): void {
   s.h2 = u.h2;
 }
 
+/** Vrai si une Sentinelle qui sort fait gagner, sachant que `exitsBefore` pièces sont déjà sorties. */
+export function sentinelExitWinsNow(exitsBefore: number): boolean {
+  return RULES.end.sentinelExitWins && (!RULES.end.sentinelMustExitFirst || exitsBefore === 0);
+}
+
 /** Vrai si l'action donne immédiatement la victoire au joueur qui la joue (tri des coups, niveau Facile). */
 export function isImmediateWin(s: CoreState, a: Action): boolean {
+  if (a.kind === K_ATTACK && RULES.end.noPiecesLoses) {
+    // Capturer la dernière pièce adverse sur le plateau.
+    const foe = s.pplayer[a.target];
+    for (let p = 0; p < s.ptype.length; p++) if (p !== a.target && s.pstatus[p] === ST_BOARD && s.pplayer[p] === foe) return false;
+    return true;
+  }
   if (a.kind !== K_EXIT) return false;
   const pl = s.pplayer[a.piece] as PlayerId;
-  if (s.ptype[a.piece] === SENTINEL && RULES.end.sentinelExitWins) return true;
+  if (s.ptype[a.piece] === SENTINEL && sentinelExitWinsNow(s.exits)) return true;
   return s.exited[pl] + 1 >= RULES.end.exitsToWin;
 }
 

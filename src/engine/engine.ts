@@ -132,7 +132,8 @@ export class LocalEngine implements GameEngine {
     const s = fromGameState(this.state);
     const a = s.ids.indexOf(move.pieceId);
     const t = s.ids.indexOf(move.targetId!);
-    const r = combat(s, a, t, move.cost, true);
+    const via = move.path[move.path.length - 2]; // case d'appui : avant-dernière case du chemin
+    const r = combat(s, a, t, move.cost, via.row * s.topo.size + via.col, true);
     return { attack: r.attack, defense: r.defense, details: r.details };
   }
 

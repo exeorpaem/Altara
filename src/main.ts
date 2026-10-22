@@ -332,6 +332,7 @@ function showEnd(s: GameState) {
   const reasons: Record<string, string> = {
     sentinel: w !== 'draw' ? `La Sentinelle de ${NAMES[w]} est sortie : victoire immédiate.` : '',
     secondExit: w !== 'draw' ? `${NAMES[w]} a fait sortir sa deuxième pièce.` : '',
+    eliminated: w !== 'draw' ? `${NAMES[w === 1 ? 2 : 1]} n'a plus aucune pièce sur le plateau.` : '',
     score: w === 'draw' ? `Deux pièces sont sorties et les scores sont à égalité (${sc}).` : `Deux pièces sont sorties : ${NAMES[w]} mène ${sc} au score.`,
     time: w !== 'draw' ? `Temps écoulé : ${NAMES[w === 1 ? 2 : 1]} n'a plus de temps à sa pendule.` : '',
     moveLimit:

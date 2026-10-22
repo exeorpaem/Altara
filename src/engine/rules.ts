@@ -80,8 +80,15 @@ export const RULES = {
   end: {
     /** Un joueur gagne dès que ce nombre de SES pièces est sorti (une pièce capturée ne compte pas). */
     exitsToWin: 2,
-    /** Une Sentinelle qui sort fait gagner son camp immédiatement, à tout moment. */
+    /** Une Sentinelle qui sort fait gagner son camp immédiatement… */
     sentinelExitWins: true,
+    /**
+     * … à condition d'être la PREMIÈRE pièce sortie de la partie (tous camps confondus).
+     * Sinon, c'est une sortie ordinaire : elle rapporte ses points et compte pour exitsToWin.
+     */
+    sentinelMustExitFirst: true,
+    /** Un joueur qui n'a plus aucune pièce sur le plateau (capturées ou sorties) a perdu. */
+    noPiecesLoses: true,
   },
   /**
    * Colonnes de départ (indices 0 à 9) : formation centrée, 2 cases libres de chaque côté.

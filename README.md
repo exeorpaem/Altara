@@ -80,17 +80,22 @@ La pièce rapporte sa Force au score. *Hypothèse non tranchée : on peut attein
 **Combat** : chemin normal jusqu'à une case adjacente à l'ennemi puis entrée sur sa case (coût total ≤ Mouvement,
 entrée comprise avec le dénivelé). Légal si **attaque ≥ défense** ; le défenseur est retiré, l'attaquant prend sa case.
 
-- Attaque = Force de base + hauteur (+1 si la case de départ est plus haute que la cible, −1 si plus basse)
-  + Force de base de chaque autre allié adjacent à la cible + charge (+1 pour une Avant-garde dont le chemin le plus court coûte exactement 4).
+- Attaque = Force de base + hauteur (+1 si la **case d'appui** — la case voisine de la cible d'où l'on entre — est plus
+  haute que la cible, −1 si plus basse) + Force de base de chaque autre allié adjacent à la cible + charge (+1 pour une
+  Avant-garde dont le chemin passant par cette case d'appui coûte exactement 4).
+- S'il y a plusieurs cases d'appui possibles, le jeu choisit automatiquement celle qui donne la meilleure attaque
+  (à attaque égale, la moins chère).
 - Défense = Force de base + 1 par allié du défenseur adjacent à lui.
 
 **Fin de partie**
-- Une **Sentinelle qui sort** fait gagner son camp **immédiatement**, à tout moment de la partie.
-- Sinon, le **premier joueur qui fait sortir sa deuxième pièce** gagne. Une pièce capturée ne compte jamais
+- Une **Sentinelle qui sort** fait gagner son camp **immédiatement**, à condition d'être la **première pièce sortie
+  de la partie** (tous camps confondus). Sinon, c'est une sortie ordinaire (points + compte pour la 2e sortie).
+- Sinon, le **premier joueur qui fait sortir sa deuxième pièce** gagne.
+- Un joueur qui n'a **plus aucune pièce sur le plateau** (capturées ou sorties) a **perdu**. Une pièce capturée ne compte jamais
   comme une sortie. Chaque sortie rapporte aussi la Force de la pièce en points (utilisés à la limite de coups).
 - 200 coups (un coup = le tour d'un joueur, passes comprises) : meilleur score en points ; si personne n'a marqué,
   la pièce la plus avancée (moins de rangées à franchir), puis la plus grande Force de cette pièce, sinon nulle.
-  *Hypothèse : un joueur sans pièce sur le plateau perd ce départage.*
+  (Un joueur sans pièce a déjà perdu avant d'arriver là.)
 - Un joueur sans coup légal passe son tour (affiché à l'écran).
 - **Pendule** (cadence choisie dans le panneau, 10+0 par défaut : 10 minutes par joueur, sans incrément) :
   le joueur dont la pendule tombe à 0 perd (raison « time »). Seul le temps de réflexion est décompté :
