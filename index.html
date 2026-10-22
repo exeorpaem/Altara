@@ -35,7 +35,8 @@
       </div>
     </div>
 
-    <details class="tr-panel drawer" id="panel" open>
+    <aside id="side">
+      <details class="tr-panel drawer" id="panel" open>
       <summary>Réglages</summary>
       <div class="ai-level" id="live-level-box">
         <label for="ai-level-live">Niveau de l'IA <b id="ai-level-live-num">5</b> / 10</label>
@@ -52,6 +53,19 @@
         <button id="btn-top" class="btn">Vue de dessus</button>
       </div>
     </details>
+      <details class="hist-panel drawer" id="hist" open>
+        <summary>Historique <span id="hist-count"></span></summary>
+        <ol class="hist-list" id="hist-list"></ol>
+      </details>
+    </aside>
+
+    <div class="replay-bar" id="replay-bar" role="status" hidden>
+      <button id="rpl-prev" class="btn" aria-label="Coup précédent" title="Coup précédent (←)">◀</button>
+      <span id="rpl-label">Relecture</span>
+      <button id="rpl-next" class="btn" aria-label="Coup suivant" title="Coup suivant (→)">▶</button>
+      <button id="rpl-live" class="btn" title="Revenir au présent (Échap)">Revenir au présent</button>
+      <span class="rpl-new" id="rpl-new" hidden>● nouveau coup</span>
+    </div>
 
     <div class="legend">
       <span><i class="lg-dot"></i>Déplacement (pâlit avec le coût)</span>

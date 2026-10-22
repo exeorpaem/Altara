@@ -18,6 +18,7 @@ import type { TimeControl } from './engine/engine';
 import { AI_LEVELS, levelNumber, type AiLevel } from './engine/ai/search';
 import { setupRulesPanel } from './ui/rules-panel';
 import { tally } from './engine/tally';
+import { stateAtPly } from './engine/replay';
 import { PIECES } from './engine/rules';
 import { MODE_BLURB, drawTerrainPreview } from './ui/home';
 import type { GameState } from './engine/types';
@@ -96,6 +97,7 @@ function newGame() {
   lastCurrent = engine.getState().current;
   endPlayed = false;
   seenHistory = 0;
+  replayPly = null;
   hideEnd();
   view?.dispose();
   view = null;
@@ -275,6 +277,8 @@ function onStateChange() {
   }
 
   renderTally(s);
+  renderHistory(s);
+  refreshReplayUi();
 
   // Passes survenues depuis le dernier affichage (le moteur les joue tout seul).
   const fresh = s.history.slice(seenHistory);
@@ -328,9 +332,84 @@ async function aiTurn() {
   if (token !== gameToken || !view) return;
   thinking = false;
   view.locked = false;
-  if (res.move) await view.playMove(res.move); // playMove appelle onStateChange à la fin
+  if (res.move && view.replaying) {
+    // Relecture affichée : l'IA joue en coulisses, sans animation ; un indicateur signale le nouveau coup.
+    engine.play(res.move, clock.take());
+    onStateChange();
+  } else if (res.move) await view.playMove(res.move); // playMove appelle onStateChange à la fin
   else onStateChange();
 }
+
+// --- Historique et relecture ---------------------------------------------------------
+/** Coup affiché en relecture (nombre d'enregistrements joués), ou null au présent. */
+let replayPly: number | null = null;
+/** Nombre de coups au moment d'entrer en relecture : sert à signaler les coups arrivés depuis. */
+let replayBaseN = 0;
+const histList = $('hist-list');
+
+function renderHistory(s: GameState) {
+  const N = s.history.length;
+  $('hist-count').textContent = N ? `(${N})` : '';
+  const active = replayPly ?? N;
+  histList.innerHTML = s.history
+    .map((h, i) => {
+      const cls = `${h.pass ? 'pass ' : ''}${i + 1 === active ? 'cur' : ''}`;
+      return `<li><button type="button" class="hist-row ${cls}" data-ply="${i + 1}" data-camp="${h.player}"><span class="hn">${i + 1}.</span><i data-camp="${h.player}"></i><span class="hnot">${h.notation}</span></button></li>`;
+    })
+    .join('');
+  if (!N) histList.innerHTML = '<li class="hist-empty">Aucun coup joué</li>';
+  const cur = histList.querySelector('.cur');
+  if (cur) cur.scrollIntoView({ block: 'nearest' });
+}
+histList.onclick = (e) => {
+  const row = (e.target as HTMLElement).closest<HTMLElement>('.hist-row');
+  if (row) showPly(Number(row.dataset.ply));
+};
+
+function showPly(n: number) {
+  if (!view || view.busy) return;
+  const s = engine.getState();
+  if (n >= s.history.length) return exitReplay();
+  if (replayPly === null) replayBaseN = s.history.length;
+  replayPly = Math.max(0, n);
+  view.setReplay(new LocalEngine(stateAtPly(s, replayPly)));
+  renderHistory(s);
+  refreshReplayUi();
+}
+function exitReplay() {
+  if (replayPly === null) return;
+  replayPly = null;
+  view?.setReplay(null);
+  renderHistory(engine.getState());
+  refreshReplayUi();
+}
+function refreshReplayUi() {
+  const bar = $('replay-bar');
+  bar.hidden = replayPly === null;
+  document.body.classList.toggle('replaying', replayPly !== null);
+  if (replayPly === null) return;
+  const N = engine.getState().history.length;
+  $('rpl-label').textContent = `Relecture – coup ${replayPly} / ${N}`;
+  $<HTMLButtonElement>('rpl-prev').disabled = replayPly <= 0;
+  $('rpl-new').hidden = N <= replayBaseN;
+}
+$('rpl-prev').onclick = () => replayPly !== null && showPly(replayPly - 1);
+$('rpl-next').onclick = () => replayPly !== null && showPly(replayPly + 1);
+$('rpl-live').onclick = exitReplay;
+window.addEventListener('keydown', (e) => {
+  const t = e.target as HTMLElement | null;
+  if (!engine || !view || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (t && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))) return;
+  if (!$('confirm').hidden || !$('end').hidden || document.querySelector('.rp-overlay:not([hidden])')) return;
+  if (e.key === 'ArrowLeft') {
+    const cur = replayPly ?? engine.getState().history.length;
+    if (cur > 0) showPly(cur - 1);
+    e.preventDefault();
+  } else if (e.key === 'ArrowRight' && replayPly !== null) {
+    showPly(replayPly + 1);
+    e.preventDefault();
+  } else if (e.key === 'Escape' && replayPly !== null) exitReplay();
+});
 
 /** Pastilles des pièces sorties et capturées de chaque camp (lettre = type, couleur = camp). */
 function renderTally(s: GameState) {
@@ -465,6 +544,7 @@ function showHome() {
   thinking = false;
   clock.reset();
   hideEnd();
+  replayPly = null;
   view?.dispose();
   view = null;
   homeEl.hidden = false;
@@ -549,6 +629,7 @@ function refreshUndo() {
 
 function undoMove() {
   if (!canUndo()) return;
+  exitReplay();
   // Si l'IA est en train de réfléchir, on interrompt sa réflexion.
   if (thinking) {
     ai.cancel();
