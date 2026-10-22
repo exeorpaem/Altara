@@ -168,10 +168,15 @@ let thinking = false;
 // --- Pendule -----------------------------------------------------------------------
 const clock = new GameClock();
 const cadenceEl = $<HTMLSelectElement>('cadence');
-cadenceEl.value = params.get('cadence') ?? '10+0';
+// Dans une URL, « + » se lit comme un espace : « 10+0 » revient en « 10 0 ».
+// On le rétablit, et toute valeur inconnue retombe sur la cadence par défaut
+// (sinon le menu reste vide et la pendule démarre à 0 : défaite immédiate).
+const urlCadence = (params.get('cadence') ?? '').replace(/ /g, '+');
+cadenceEl.value = [...cadenceEl.options].some((o) => o.value === urlCadence) ? urlCadence : '10+0';
 function timeControl(): TimeControl | null {
   if (cadenceEl.value === 'none') return null;
   const [m, inc] = cadenceEl.value.split('+').map(Number);
+  if (!(m > 0) || !(inc >= 0)) return { minutes: 10, incrementSec: 0 };
   return { minutes: m, incrementSec: inc };
 }
 cadenceEl.onchange = newGame; // une nouvelle cadence s'applique à une nouvelle partie
@@ -382,7 +387,7 @@ opponentEl.onchange = () => {
 
 function updateUrl() {
   try {
-    history.replaceState(null, '', `?mode=${modeEl.value}&seed=${seedEl.value}&skin=${skin.id}&ai=${opponentEl.value === 'local' ? 'local' : levelEl.value}&cadence=${cadenceEl.value}`);
+    history.replaceState(null, '', `?mode=${modeEl.value}&seed=${seedEl.value}&skin=${skin.id}&ai=${opponentEl.value === 'local' ? 'local' : levelEl.value}&cadence=${encodeURIComponent(cadenceEl.value)}`);
   } catch {
     /* aperçu hors serveur : sans importance */
   }
