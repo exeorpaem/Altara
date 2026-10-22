@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="./src/ui/base.css" />
     <link rel="stylesheet" href="./src/ui/game.css" />
     <link rel="stylesheet" href="./src/ui/home.css" />
+    <link rel="stylesheet" href="./src/ui/panels.css" />
   </head>
   <body>
     <div id="app"></div>
@@ -27,6 +28,10 @@
         <span>Coup <b id="turn-count">0</b> / 200</span>
         <span class="score" id="score-1"><i style="background: var(--coral)"></i>Corail <b>0</b>/2 sorties <em>· 0 pt</em></span>
         <span class="score" id="score-2"><i style="background: var(--lagoon)"></i>Lagon <b>0</b>/2 sorties <em>· 0 pt</em></span>
+      </div>
+      <div class="tally-row" aria-label="Pièces sorties et capturées">
+        <div class="tally" id="tally-1"></div>
+        <div class="tally" id="tally-2"></div>
       </div>
     </div>
 
@@ -137,6 +142,17 @@
       </div>
     </div>
 
+    <div class="end-screen" id="confirm" hidden>
+      <div class="end-card" role="alertdialog" aria-labelledby="confirm-title">
+        <h2 id="confirm-title"></h2>
+        <p id="confirm-text"></p>
+        <div class="end-actions">
+          <button id="confirm-ok" class="btn"></button>
+          <button id="confirm-cancel" class="btn btn-ghost">Continuer la partie</button>
+        </div>
+      </div>
+    </div>
+
     <div class="sc-controls">
       <button id="btn-undo" class="btn btn-undo" title="Annuler le dernier coup (Ctrl+Z)">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -145,6 +161,7 @@
         Annuler le coup
       </button>
       <button id="btn-rules" class="btn" title="Fiche de règles (R)">Règles</button>
+      <button id="btn-restart" class="btn" title="Recommencer avec le même terrain et les mêmes options">Recommencer</button>
       <button id="btn-menu" class="btn" title="Retour à l'accueil">Menu</button>
       <button id="btn-sound" class="btn btn-icon" aria-label="Couper le son" title="Couper le son (M)">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">

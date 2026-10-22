@@ -1,0 +1,23 @@
+/* Pièces sorties et capturées, par camp (affichage permanent) */
+.tally-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.tally {
+  display: flex; align-items: center; gap: 8px; background: var(--panel); backdrop-filter: blur(8px);
+  padding: 4px 10px; border-radius: 999px; font-size: 11px; color: var(--ink-soft);
+}
+.tally > i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+#tally-1 > i { background: var(--coral); }
+#tally-2 > i { background: var(--lagoon); }
+.tl-grp { display: inline-flex; align-items: center; gap: 3px; }
+.tl-grp small { font-size: 11px; margin-right: 2px; }
+.tl-grp em { font-style: normal; margin-left: 3px; color: var(--ink); }
+.pc {
+  display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; font-size: 10px; font-weight: 700;
+  color: #fff; box-shadow: 0 0 0 1.5px #fff inset;
+}
+.pc-1 { background-color: var(--coral); }
+.pc-2 { background-color: var(--lagoon); }
+.pc.cap { opacity: 0.55; background-image: linear-gradient(135deg, transparent 44%, rgba(74,74,90,0.85) 44%, rgba(74,74,90,0.85) 56%, transparent 56%); }
+.pc-none { opacity: 0.6; padding: 0 3px; }
+
+/* Barre de boutons du bas */
+.sc-controls { flex-wrap: wrap; justify-content: center; max-width: calc(100vw - 16px); }

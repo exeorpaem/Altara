@@ -17,6 +17,8 @@ import { GameClock, formatClock } from './ui/clock';
 import type { TimeControl } from './engine/engine';
 import { AI_LEVELS, levelNumber, type AiLevel } from './engine/ai/search';
 import { setupRulesPanel } from './ui/rules-panel';
+import { tally } from './engine/tally';
+import { PIECES } from './engine/rules';
 import { MODE_BLURB, drawTerrainPreview } from './ui/home';
 import type { GameState } from './engine/types';
 
@@ -272,6 +274,8 @@ function onStateChange() {
     $(`score-${p}`).querySelector('em')!.textContent = `· ${s.score[p]} pt${s.score[p] > 1 ? 's' : ''}`;
   }
 
+  renderTally(s);
+
   // Passes survenues depuis le dernier affichage (le moteur les joue tout seul).
   const fresh = s.history.slice(seenHistory);
   seenHistory = s.history.length;
@@ -326,6 +330,20 @@ async function aiTurn() {
   view.locked = false;
   if (res.move) await view.playMove(res.move); // playMove appelle onStateChange à la fin
   else onStateChange();
+}
+
+/** Pastilles des pièces sorties et capturées de chaque camp (lettre = type, couleur = camp). */
+function renderTally(s: GameState) {
+  const t = tally(s);
+  const chips = (types: string[], p: PlayerId, cls: string) =>
+    types.length
+      ? types.map((ty) => `<span class="pc pc-${p} ${cls}" title="${PIECES[ty as keyof typeof PIECES].name}">${PIECES[ty as keyof typeof PIECES].letter}</span>`).join('')
+      : '<span class="pc-none">—</span>';
+  for (const p of [1, 2] as PlayerId[]) {
+    $(`tally-${p}`).innerHTML =
+      `<i data-camp="${p}"></i><span class="tl-grp"><small>Sorties</small>${chips(t[p].exited, p, 'ex')}<em>${t[p].points} pt${t[p].points > 1 ? 's' : ''}</em></span>` +
+      `<span class="tl-grp"><small>Capturées</small>${chips(t[p].captured, p, 'cap')}</span>`;
+  }
 }
 
 function toast(msg: string) {
@@ -465,8 +483,41 @@ $('btn-play').onclick = () => {
   newGame();
 };
 $('btn-home-rules').onclick = () => $('btn-rules').click();
-$('btn-menu').onclick = showHome;
+// Partie en cours = au moins un coup joué et pas de résultat : on demande confirmation avant de la perdre.
+const inProgress = () => !!engine && !!view && !engine.getState().result && engine.getState().history.length > 0;
+function askConfirm(title: string, text: string, okLabel: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    $('confirm-title').textContent = title;
+    $('confirm-text').textContent = text;
+    $('confirm-ok').textContent = okLabel;
+    $('confirm').hidden = false;
+    const done = (v: boolean) => {
+      $('confirm').hidden = true;
+      window.removeEventListener('keydown', onKey, true);
+      resolve(v);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation();
+        done(false);
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    $('confirm-ok').onclick = () => done(true);
+    $('confirm-cancel').onclick = () => done(false);
+  });
+}
+async function goMenu() {
+  if (inProgress() && !(await askConfirm('Retourner au menu ?', 'La partie en cours sera abandonnée.', 'Retour au menu'))) return;
+  showHome();
+}
+async function restart() {
+  if (inProgress() && !(await askConfirm('Recommencer ?', 'Même terrain, même seed, mêmes options : la partie en cours sera perdue.', 'Recommencer'))) return;
+  newGame();
+}
+$('btn-menu').onclick = goMenu;
 $('end-menu').onclick = showHome;
+$('btn-restart').onclick = restart;
 $('btn-new-seed').onclick = () => {
   seedEl.value = randomSeed();
   refreshHome();
