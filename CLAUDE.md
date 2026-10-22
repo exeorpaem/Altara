@@ -86,7 +86,8 @@ implémentation des règles (core/actions) sert à l'interface ET à l'IA.
   - joueur **sans pièce sur le plateau** (raison « eliminated ») : dernière capturée → perd ; dernière sortie →
     gagne si l'adversaire ne peut plus l'égaler, nulle si égalité au mieux, sinon perd ;
   - sinon le **premier joueur à faire sortir sa 2e pièce** gagne (pièces capturées : ne comptent pas) ;
-  - 200 coups (passes comprises) : meilleur score en points, sinon pièce la plus avancée, puis plus
+  - 200 coups (passes comprises) + **1 coup de réponse** pour le camp qui a commencé (`RULES.finalReply`,
+    `TURN_LIMIT` = 201), puis départage : meilleur score en points, sinon pièce la plus avancée, puis plus
     grande Force, sinon nulle ;
   - pendule (10+0 par défaut, chute = défaite, raison « time ») ; joueur sans coup légal : passe.
 
@@ -101,8 +102,8 @@ implémentation des règles (core/actions) sert à l'interface ET à l'IA.
 
 ## Faits connus / pièges
 
-- La limite de 200 coups favorise J2 (il joue le dernier coup avant le départage) : déséquilibre
-  mesuré surtout en mode Vallées. Non corrigé (décision de règle à prendre par l'utilisateur).
+- La limite de 200 coups favorisait le second joueur (dernier coup avant le départage) : corrigé par
+  le coup de réponse final (décision de l'utilisateur). Équité à re-mesurer par self-play.
 - Les rapports d'équité dans `reports/` datent de l'**ancienne** règle de fin (2 sorties tous camps,
   1re sortie Sentinelle) : à relancer avec la règle actuelle.
 - Le Web Worker de l'IA peut être bloqué par une CSP (aperçus intégrés) : le client bascule alors sur

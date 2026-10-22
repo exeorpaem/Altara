@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LocalEngine } from '../src/engine/engine';
-import { RULES } from '../src/engine/rules';
+import { RULES, TURN_LIMIT } from '../src/engine/rules';
 import { exitRecord, flat, piece, state } from './helpers';
 import type { GameState, Move } from '../src/engine/types';
 
@@ -123,7 +123,20 @@ describe('fin par deuxième sortie', () => {
 });
 
 describe('limite de coups', () => {
-  const last = RULES.maxTurns - 1;
+  it("le joueur qui a commencé joue un coup de réponse après le 200e coup", () => {
+    expect(TURN_LIMIT).toBe(RULES.maxTurns + 1);
+    // Au 200e coup (le second joueur vient de jouer), la partie continue.
+    const a = piece('sentinel', 1, 4, 4);
+    const b = piece('sentinel', 2, 6, 6);
+    const eng = new LocalEngine(state(flat(), [a, b], 2, { turn: RULES.maxTurns - 1 }));
+    eng.play(anyMove(eng, b.id) as Move);
+    expect(eng.getState().result).toBeNull();
+    expect(eng.getState().current).toBe(1);
+    eng.play(anyMove(eng, a.id) as Move);
+    expect(eng.getState().result?.reason).toBe('moveLimit');
+  });
+
+  const last = TURN_LIMIT - 1;
   const atLimit = (g: GameState, mover: string) => {
     const eng = new LocalEngine(g);
     eng.play(anyMove(eng, mover) as Move);
@@ -135,7 +148,7 @@ describe('limite de coups', () => {
     const a = piece('sentinel', 1, 8, 4);
     const b = piece('sentinel', 2, 8, 8);
     const s = atLimit(state(flat(), [out, a, b], 1, { turn: last, score: { 1: 0, 2: 1 }, history: [exitRecord(out)] }), a.id);
-    expect(s.turn).toBe(RULES.maxTurns);
+    expect(s.turn).toBe(TURN_LIMIT);
     expect(s.result).toEqual({ winner: 2, reason: 'moveLimit' });
   });
 
@@ -213,8 +226,8 @@ describe('passe', () => {
     const eng = new LocalEngine(state(h, [s1, s2, v1]));
     eng.play(exitOf(eng, v1.id));
     const s = eng.getState();
-    expect(s.turn).toBe(RULES.maxTurns);
-    expect(s.history.filter((r) => r.pass)).toHaveLength(RULES.maxTurns - 1);
+    expect(s.turn).toBe(TURN_LIMIT);
+    expect(s.history.filter((r) => r.pass)).toHaveLength(TURN_LIMIT - 1);
     expect(s.result).toEqual({ winner: 1, reason: 'moveLimit' }); // J1 a marqué 2, J2 rien
   });
 });

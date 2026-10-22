@@ -42,6 +42,11 @@ export const RULES = {
   pieceBudget: 6,
   /** Nombre maximal de coups d'une partie (affichage « x / 200 ») */
   maxTurns: 200,
+  /**
+   * Coup de réponse final : à la limite, le second joueur vient de jouer le dernier coup ;
+   * le joueur qui a commencé joue encore un coup avant le départage (équité entre les camps).
+   */
+  finalReply: true,
   /** Coût de la sortie par le bord adverse */
   exitCost: 1,
   /** Règles de déplacement (lues par core.ts : changer une valeur suffit). */
@@ -136,3 +141,6 @@ for (const def of Object.values(PIECES)) {
     throw new Error(`Pièce ${def.name} : Mouvement + Force ≠ ${RULES.pieceBudget}`);
   }
 }
+
+/** Nombre total de coups avant le départage (limite + éventuel coup de réponse final). */
+export const TURN_LIMIT = RULES.maxTurns + (RULES.finalReply ? 1 : 0);

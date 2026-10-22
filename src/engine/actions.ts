@@ -1,5 +1,5 @@
 // Génération des coups légaux et application (jouer / annuler) sur la position compacte.
-import { RULES, type PlayerId } from './rules';
+import { RULES, TURN_LIMIT, type PlayerId } from './rules';
 import { combat } from './combat';
 import {
   EXPLORER,
@@ -368,7 +368,7 @@ export function makeAction(s: CoreState, a: Action): Undo {
   s.current = s.current === 1 ? 2 : 1;
   s.h1 ^= Z_SIDE[0];
   s.h2 ^= Z_SIDE[1];
-  if (!s.result && s.turn >= RULES.maxTurns) s.result = moveLimitResult(s);
+  if (!s.result && s.turn >= TURN_LIMIT) s.result = moveLimitResult(s);
   return u;
 }
 

@@ -252,7 +252,8 @@ function onStateChange() {
         ? `À toi de jouer (${NAMES[s.current]})`
         : `${NAMES[s.current]} joue`;
   $('turn-text').parentElement!.classList.toggle('thinking', thinking);
-  $('turn-count').textContent = String(s.turn);
+  // Après le 200e coup : le camp qui a commencé joue un dernier coup de réponse.
+  $('turn-count').textContent = s.turn >= RULES.maxTurns && !s.result ? `${s.turn} · réponse finale` : String(s.turn);
   for (const p of [1, 2] as PlayerId[]) {
     // Sorties (2 = victoire) et points (Force des pièces sorties, utilisés à la limite de coups).
     const exited = s.pieces.filter((x) => x.player === p && x.status === 'exited').length;
