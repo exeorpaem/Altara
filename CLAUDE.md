@@ -26,7 +26,7 @@ ni les éléments graphiques du jeu d'origine.
 ```bash
 npm install
 npm run dev          # jeu : http://localhost:5173/ · vitrine des pièces : /showcase/
-npm test             # 80 tests Vitest (tous doivent passer avant chaque commit)
+npm test             # tests Vitest (115) (tous doivent passer avant chaque commit)
 npx tsc --noEmit     # vérification des types
 npm run build        # build de production (BASE_PATH=/Altara/ pour GitHub Pages)
 npm run selfplay -- --duel 50 --equity 100 --jobs 4
@@ -37,7 +37,8 @@ Modes de terrain : random, mountains, valleys, highlands, woods, desert, volcano
 
 Débogage navigateur : ajouter `?debug` à l'URL expose `window.__altara`
 (`engine()`, `view()`, `board()`, `ai`, `sound`, `screenOf(row, col)`, `soundDemo()`).
-Paramètres d'URL : `?mode=woods&seed=KNVDF0&ai=5|local&cadence=10+0`.
+Paramètres d'URL : `?mode=woods&seed=KNVDF0&ai=5|local&cadence=10%2B0&first=1|2|random`
+(dans une URL, `+` se lit comme un espace : la cadence est encodée).
 
 ## Architecture (voir aussi README.md)
 
@@ -54,7 +55,7 @@ src/engine/   PUR TypeScript (ni Three.js ni DOM) — toute la logique de jeu
   ai/evaluate.ts  évaluation + EVAL_WEIGHTS ; ai/search.ts  niveaux 1–10 (AI_LEVELS), alpha-bêta, TT
 src/ai/       Web Worker de l'IA + client (poignée de main, délai de garde, repli fil principal)
 src/render/   scène, plateau, pièces procédurales, game-view (sélection, marqueurs, animations), skins (une palette par mode de terrain)
-src/ui/       CSS, pendule (clock.ts), sound design Web Audio (sound.ts), fiche de règles (rules-panel.ts)
+src/ui/       CSS, pendule (clock.ts), sound design Web Audio (sound.ts), fiche de règles (rules-panel.ts), accueil (home.ts), thème (theme.ts), CSS : base / game / home / panels
 src/main.ts   page de jeu (branche tout ensemble)
 scripts/selfplay.ts   IA contre IA sans rendu, rapport dans reports/
 .github/workflows/    ci.yml (types + tests + build) · pages.yml (déploiement GitHub Pages)
@@ -85,8 +86,8 @@ implémentation des règles (core/actions) sert à l'interface ET à l'IA.
   - joueur **sans pièce sur le plateau** (raison « eliminated ») : dernière capturée → perd ; dernière sortie →
     gagne si l'adversaire ne peut plus l'égaler, nulle si égalité au mieux, sinon perd ;
   - sinon le **premier joueur à faire sortir sa 2e pièce** gagne (pièces capturées : ne comptent pas) ;
-  - 200 coups (passes comprises) : meilleur score en points, sinon pièce la plus avancée, puis plus
-    grande Force, sinon nulle ;
+  - 200 coups (passes comprises) : **seul le score en points départage**, égalité = nulle
+    (`RULES.limitScoreOnly`). Le coup de réponse final (`RULES.finalReply`) a été essayé puis désactivé ;
   - pendule (10+0 par défaut, chute = défaite, raison « time ») ; joueur sans coup légal : passe.
 
 ## Hypothèses à faire confirmer (ne pas trancher seul)
@@ -94,38 +95,52 @@ implémentation des règles (core/actions) sert à l'interface ET à l'IA.
 1. `RULES.movement.exitInSameMove = true` : atteindre la dernière rangée et sortir dans le même coup.
 2. (Tranché) Dernière pièce SORTIE : gagne si l'adversaire ne peut plus l'égaler (score + Force de ses
    pièces restantes < ses points), nulle si au mieux égalité, sinon perd. Dernière pièce CAPTURÉE : perd.
-3. **Charge** : l'utilisateur a demandé si elle compte le *coût* (actuel, conforme à sa consigne) ou le
-   *nombre de cases* parcourues — **question restée sans réponse**.
+3. (Tranché) **Charge** : on compte le **coût** du chemin (pas le nombre de cases) ; la charge par
+   contournement (autre case d'appui) est conservée.
 4. Notation d'attaque depuis la case de départ (ex. `A G4×H6`).
 
 ## Faits connus / pièges
 
-- La limite de 200 coups favorise J2 (il joue le dernier coup avant le départage) : déséquilibre
-  mesuré surtout en mode Vallées. Non corrigé (décision de règle à prendre par l'utilisateur).
+- Équité (reports/equite-2026-10-22.md + témoins) : l'ancien départage « pièce la plus avancée »
+  récompensait le dernier à jouer ; le coup de réponse final inversait le biais (64,8 % pour le 1er).
+  Règle retenue : départage au score seul → les parties à la limite sont presque toutes nulles ;
+  le 1er joueur gagne 60 % des parties décisives (avantage de course). Vallées et Canyon restent
+  déséquilibrés (générateur à revoir).
 - Les rapports d'équité dans `reports/` datent de l'**ancienne** règle de fin (2 sorties tous camps,
   1re sortie Sentinelle) : à relancer avec la règle actuelle.
 - Le Web Worker de l'IA peut être bloqué par une CSP (aperçus intégrés) : le client bascule alors sur
   le fil principal (Difficile limité à 1 s). Ne pas retirer ce repli.
 - Sous Vitest, ne pas dépendre de l'ordre des tests ; les tests de terrain tournent 6 000 générations.
 - Charge + case d'appui automatique : une Avant-garde peut obtenir la charge en contournant la cible
-  (chemin de coût 4 par une autre case d'appui) → 3 contre 3 contre une Sentinelle isolée sur terrain plat.
+  (chemin de coût 4 par une autre case d'appui) → 3 contre 3 contre une Sentinelle isolée (voulu).
+- `npm test` exécute aussi les worktrees d'agents sous `.claude/` : utiliser
+  `npx vitest run --exclude '.claude/**'` quand il y en a.
 
 ## Fait (résumé)
 
-Moteur complet et testé (80 tests) · rendu low-poly pastel, palette (skin) imposée par le terrain (10 palettes), île flottante · sélection,
+Moteur complet et testé (115 tests) · rendu low-poly pastel, palette (skin) imposée par le terrain (10 palettes), île flottante · sélection,
 marqueurs, aperçu de chemin, animations · inspection des pièces adverses (anneaux creux) · anneau gris
 des attaques refusées avec explication · IA 1 à 10 dans un Web Worker · pendule · sound design
 synthétisé (une gamme pentatonique, voix par camp, ambiance) · bouton Annuler / Ctrl+Z · clic droit =
-désélection · CI et déploiement GitHub Pages.
+désélection · CI et déploiement GitHub Pages · fiche de règles · choix du joueur qui commence ·
+10 modes de terrain avec décors 3D (src/render/decor.ts). Mode en ligne : abandonné. Design des
+pièces : on garde le design d'origine (styles alternatifs essayés puis abandonnés).
+
+## Interface ajoutée (session UI)
+
+Accueil, Recommencer/Menu, décompte sorties/captures (`engine/tally.ts`), historique + relecture (`engine/replay.ts`,
+`GameView.setReplay`), mobile < 700 px (tiroirs), mode daltonien (`altara.colorblind`), thème Auto/Clair/Sombre
+(`altara.theme`, variables CSS). Pièges : `updateUrl()` retire `?debug` de l'URL (recharger via goto avec `&debug`) ;
+pendant une relecture, l'IA joue directement sur le moteur réel (pas d'animation).
 
 ## Reste à faire (cahier des charges initial, étape 5 non terminée)
 
-- [ ] **Historique** : panneau latéral avec notation, clic = relecture de la position, retour au présent.
+- [x] **Historique** : panneau latéral avec notation, clic = relecture de la position, retour au présent.
 - [ ] **Sauvegarde automatique** (localStorage via serialize/load, try/catch) + reprise proposée à l'accueil.
-- [ ] **Écran d'accueil** (mode, terrain, seed facultative) — aujourd'hui tout est dans le panneau.
-- [ ] **Mode daltonien** : motif ou liseré par camp en plus de la couleur.
+- [x] **Écran d'accueil** (mode, terrain, seed facultative) — aujourd'hui tout est dans le panneau.
+- [x] **Mode daltonien** : motif ou liseré par camp en plus de la couleur.
 - [x] **Fiche de règles** : bouton « Règles » / touche R (`src/ui/rules-panel.ts`, contenu lu depuis RULES/PIECES).
-- [ ] Boutons Recommencer / Menu en jeu ; affichage des pièces sorties et capturées.
+- [x] Boutons Recommencer / Menu en jeu ; affichage des pièces sorties et capturées.
 - [ ] Relancer le self-play d'équité avec la nouvelle règle de fin et commenter les résultats.
-- [ ] Vérifier que les deux GitHub Actions passent après le premier envoi, et que Pages est activé
-      (Settings → Pages → Source : GitHub Actions).
+- [x] GitHub Actions vertes, Pages activé (Source : GitHub Actions ; un déploiement peut demander
+      une approbation dans l'onglet Actions).

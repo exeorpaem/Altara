@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { LocalEngine } from '../src/engine/engine';
-import { RULES } from '../src/engine/rules';
+import { RULES, TURN_LIMIT } from '../src/engine/rules';
 import { exitRecord, flat, piece, state } from './helpers';
 import type { GameState, Move } from '../src/engine/types';
 
@@ -123,7 +123,11 @@ describe('fin par deuxième sortie', () => {
 });
 
 describe('limite de coups', () => {
-  const last = RULES.maxTurns - 1;
+  it("pas de coup de réponse final : la partie s'arrête au 200e coup", () => {
+    expect(TURN_LIMIT).toBe(RULES.maxTurns);
+  });
+
+  const last = TURN_LIMIT - 1;
   const atLimit = (g: GameState, mover: string) => {
     const eng = new LocalEngine(g);
     eng.play(anyMove(eng, mover) as Move);
@@ -135,28 +139,16 @@ describe('limite de coups', () => {
     const a = piece('sentinel', 1, 8, 4);
     const b = piece('sentinel', 2, 8, 8);
     const s = atLimit(state(flat(), [out, a, b], 1, { turn: last, score: { 1: 0, 2: 1 }, history: [exitRecord(out)] }), a.id);
-    expect(s.turn).toBe(RULES.maxTurns);
+    expect(s.turn).toBe(TURN_LIMIT);
     expect(s.result).toEqual({ winner: 2, reason: 'moveLimit' });
   });
 
-  it('sans score : la pièce la plus avancée gagne', () => {
-    const a = piece('explorer', 1, 1, 0); // J1 : il lui reste 8 rangées au mieux…
-    const a2 = piece('explorer', 1, 7, 9); // …non : 2 rangées
+  it("sans score : match nul, même si une pièce est plus avancée (seul le score départage)", () => {
+    const a = piece('explorer', 1, 1, 0);
+    const a2 = piece('explorer', 1, 7, 9); // J1 : 2 rangées à franchir
     const b = piece('sentinel', 2, 3, 5); // J2 : 3 rangées
     const s = atLimit(state(flat(), [a, a2, b], 1, { turn: last }), a.id);
-    expect(s.result).toEqual({ winner: 1, reason: 'moveLimit' });
-  });
-
-  it('sans score, à avancée égale : la plus grande Force gagne', () => {
-    const a = piece('explorer', 1, 7, 0); // 2 rangées, Force 1
-    const b = piece('vanguard', 2, 2, 9); // 2 rangées, Force 2
-    const s = atLimit(state(flat(), [a, b], 1, { turn: last }), a.id);
-    // Le coup de J1 peut faire avancer son Explorateur : on choisit un coup qui reste à 2 rangées.
-    expect(s.result?.reason).toBe('moveLimit');
-    const eng = new LocalEngine(state(flat(), [a, b], 1, { turn: last }));
-    const sideways = eng.getLegalMoves(a.id).find((m) => m.kind === 'move' && m.path.at(-1)!.row === 7)!;
-    eng.play(sideways);
-    expect(eng.getState().result).toEqual({ winner: 2, reason: 'moveLimit' });
+    expect(s.result).toEqual({ winner: 'draw', reason: 'moveLimit' });
   });
 
   it('sans score, avancée et Force égales : nulle', () => {
@@ -213,8 +205,8 @@ describe('passe', () => {
     const eng = new LocalEngine(state(h, [s1, s2, v1]));
     eng.play(exitOf(eng, v1.id));
     const s = eng.getState();
-    expect(s.turn).toBe(RULES.maxTurns);
-    expect(s.history.filter((r) => r.pass)).toHaveLength(RULES.maxTurns - 1);
+    expect(s.turn).toBe(TURN_LIMIT);
+    expect(s.history.filter((r) => r.pass)).toHaveLength(TURN_LIMIT - 1);
     expect(s.result).toEqual({ winner: 1, reason: 'moveLimit' }); // J1 a marqué 2, J2 rien
   });
 });

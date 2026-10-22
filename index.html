@@ -6,6 +6,8 @@
     <title>Altara</title>
     <link rel="stylesheet" href="./src/ui/base.css" />
     <link rel="stylesheet" href="./src/ui/game.css" />
+    <link rel="stylesheet" href="./src/ui/home.css" />
+    <link rel="stylesheet" href="./src/ui/panels.css" />
   </head>
   <body>
     <div id="app"></div>
@@ -18,62 +20,61 @@
 
     <div class="hud-turn">
       <div class="turn-row">
-        <div class="clock" id="clock-1"><i style="background: var(--coral)"></i><b>10:00</b></div>
+        <div class="clock" id="clock-1"><i data-camp="1" style="background: var(--coral)"></i><b>10:00</b></div>
         <div class="turn-pill"><i id="turn-dot"></i><span id="turn-text"></span></div>
-        <div class="clock" id="clock-2"><i style="background: var(--lagoon)"></i><b>10:00</b></div>
+        <div class="clock" id="clock-2"><i data-camp="2" style="background: var(--lagoon)"></i><b>10:00</b></div>
       </div>
       <div class="turn-meta">
         <span>Coup <b id="turn-count">0</b> / 200</span>
-        <span class="score" id="score-1"><i style="background: var(--coral)"></i>Corail <b>0</b>/2 sorties <em>· 0 pt</em></span>
-        <span class="score" id="score-2"><i style="background: var(--lagoon)"></i>Lagon <b>0</b>/2 sorties <em>· 0 pt</em></span>
+        <span class="score" id="score-1"><i data-camp="1" style="background: var(--coral)"></i>Corail <b>0</b>/2<span class="lg"> sorties</span> <em>· 0 pt</em></span>
+        <span class="score" id="score-2"><i data-camp="2" style="background: var(--lagoon)"></i>Lagon <b>0</b>/2<span class="lg"> sorties</span> <em>· 0 pt</em></span>
+      </div>
+      <div class="tally-row" aria-label="Pièces sorties et capturées">
+        <div class="tally" id="tally-1"></div>
+        <div class="tally" id="tally-2"></div>
       </div>
     </div>
 
-    <details class="tr-panel" id="panel" open>
-      <summary>Partie &amp; décor</summary>
-      <label>Adversaire
-        <select id="opponent">
-          <option value="local">2 joueurs (local)</option>
-          <option value="ai" selected>Contre l'IA</option>
-        </select>
-      </label>
-      <div class="ai-level" id="ai-level-box">
-        <label for="ai-level">Niveau de l'IA <b id="ai-level-num">5</b> / 10 · <span id="ai-level-name">Moyen</span></label>
-        <input type="range" id="ai-level" min="1" max="10" step="1" value="5" />
-        <small id="ai-level-hint">anticipe ta réponse (2 coups)</small>
-      </div>
-      <label>Seed de l'IA <input id="ai-seed" maxlength="12" spellcheck="false" placeholder="au hasard" /></label>
-      <label>Qui commence
-        <select id="first">
-          <option value="1" selected>Corail</option>
-          <option value="2">Lagon</option>
-          <option value="random">Au hasard</option>
-        </select>
-      </label>
-      <label>Cadence (par joueur)
-        <select id="cadence">
-          <option value="10+0" selected>10 min (10+0)</option>
-          <option value="5+0">5 min (5+0)</option>
-          <option value="3+2">3 min + 2 s (3+2)</option>
-          <option value="15+10">15 min + 10 s (15+10)</option>
-          <option value="none">Sans limite</option>
-        </select>
-      </label>
-      <label>Terrain <select id="mode"></select></label>
-      <label>Seed <input id="seed" maxlength="12" spellcheck="false" /></label>
-      <div class="tr-row">
-        <button id="btn-new-game" class="btn">Nouvelle partie</button>
-        <button id="btn-new-seed" class="btn">Seed au hasard</button>
+    <aside id="side">
+      <details class="tr-panel drawer" id="panel" open>
+      <summary>Réglages</summary>
+      <div class="ai-level" id="live-level-box">
+        <label for="ai-level-live">Niveau de l'IA <b id="ai-level-live-num">5</b> / 10</label>
+        <input type="range" id="ai-level-live" min="1" max="10" step="1" value="5" />
       </div>
       <label class="check"><input type="checkbox" id="follow" /> Caméra vers le joueur actif</label>
+      <label class="check" title="Ajoute un repère non coloré par camp : anneau plein (Corail) ou pointillé (Lagon), et ● / ◆"><input type="checkbox" id="colorblind" /> Mode daltonien</label>
+      <label>Thème <select class="theme-select" aria-label="Thème de l'interface">
+          <option value="auto">Auto (système)</option>
+          <option value="light">Clair</option>
+          <option value="dark">Sombre</option>
+        </select></label>
       <label>Son</label>
       <div class="sound-row">
         <input type="range" id="volume" min="0" max="1" step="0.05" aria-label="Volume" />
         <label class="check"><input type="checkbox" id="ambience" /> Ambiance</label>
       </div>
+      <div class="tr-row">
+        <button id="btn-default" class="btn">Vue par défaut</button>
+        <button id="btn-top" class="btn">Vue de dessus</button>
+      </div>
     </details>
+      <details class="hist-panel drawer" id="hist" open>
+        <summary>Historique <span id="hist-count"></span></summary>
+        <ol class="hist-list" id="hist-list"></ol>
+      </details>
+    </aside>
 
-    <div class="legend">
+    <div class="replay-bar" id="replay-bar" role="status" hidden>
+      <button id="rpl-prev" class="btn" aria-label="Coup précédent" title="Coup précédent (←)">◀</button>
+      <span id="rpl-label">Relecture</span>
+      <button id="rpl-next" class="btn" aria-label="Coup suivant" title="Coup suivant (→)">▶</button>
+      <button id="rpl-live" class="btn" title="Revenir au présent (Échap)">Revenir au présent</button>
+      <span class="rpl-new" id="rpl-new" hidden>● nouveau coup</span>
+    </div>
+
+    <details class="legend drawer" id="legend" open>
+      <summary>Légende</summary>
       <span><i class="lg-dot"></i>Déplacement (pâlit avec le coût)</span>
       <span><i class="lg-diamond"></i>Coup spécial</span>
       <span><i class="lg-ring"></i>Attaque</span>
@@ -81,7 +82,73 @@
       <span><i class="lg-arrow">➜</i>Sortie</span>
       <span><i class="lg-hollow"></i>Pièce adverse : clic pour voir ses coups</span>
       <span><i class="lg-key">⌫</i>Clic droit ou Échap : annuler la sélection</span>
-    </div>
+    </details>
+
+
+    <main class="home" id="home" hidden>
+      <div class="home-card">
+        <h1>Altara</h1>
+        <p class="home-tag">Un plateau en relief, deux camps. Fais sortir tes pièces par le bord adverse.</p>
+
+        <div class="home-grid">
+          <label>Adversaire
+            <select id="opponent">
+              <option value="ai" selected>Contre l'IA</option>
+              <option value="local">2 joueurs (local)</option>
+            </select>
+          </label>
+          <label>Qui commence
+            <select id="first">
+              <option value="1" selected>Corail</option>
+              <option value="2">Lagon</option>
+              <option value="random">Au hasard</option>
+            </select>
+          </label>
+          <label>Cadence (par joueur)
+            <select id="cadence">
+              <option value="10+0" selected>10 min (10+0)</option>
+              <option value="5+0">5 min (5+0)</option>
+              <option value="3+2">3 min + 2 s (3+2)</option>
+              <option value="15+10">15 min + 10 s (15+10)</option>
+              <option value="none">Sans limite</option>
+            </select>
+          </label>
+          <label>Seed du terrain <span class="hint">(facultative)</span>
+            <span class="seed-row">
+              <input id="seed" maxlength="12" spellcheck="false" autocomplete="off" placeholder="au hasard" />
+              <button type="button" id="btn-new-seed" class="btn btn-icon" aria-label="Seed au hasard" title="Seed au hasard">🎲</button>
+            </span>
+          </label>
+        </div>
+
+        <div class="ai-level" id="ai-level-box">
+          <label for="ai-level">Niveau de l'IA <b id="ai-level-num">5</b> / 10 · <span id="ai-level-name">Moyen</span></label>
+          <input type="range" id="ai-level" min="1" max="10" step="1" value="5" />
+          <small id="ai-level-hint">anticipe ta réponse (2 coups)</small>
+        </div>
+        <input type="hidden" id="ai-seed" />
+
+        <div class="home-terrain">
+          <div class="home-label">Terrain</div>
+          <select id="mode" hidden></select>
+          <div class="terrain-chips" id="terrain-chips" role="radiogroup" aria-label="Terrain"></div>
+          <div class="terrain-info">
+            <canvas id="terrain-preview" width="100" height="100" aria-hidden="true"></canvas>
+            <p id="terrain-desc"></p>
+          </div>
+        </div>
+
+        <div class="home-actions">
+          <button id="btn-play" class="btn btn-primary">Jouer</button>
+          <button id="btn-home-rules" class="btn">Règles</button>
+          <label class="home-theme">Thème <select class="theme-select" aria-label="Thème de l'interface">
+          <option value="auto">Auto (système)</option>
+          <option value="light">Clair</option>
+          <option value="dark">Sombre</option>
+        </select></label>
+        </div>
+      </div>
+    </main>
 
     <div class="toast" id="toast"></div>
 
@@ -95,7 +162,19 @@
           <button id="end-undo" class="btn">Annuler le dernier coup</button>
           <button id="end-replay" class="btn">Rejouer ce terrain</button>
           <button id="end-new" class="btn">Nouvelle partie</button>
+          <button id="end-menu" class="btn">Menu</button>
           <button id="end-close" class="btn btn-ghost">Voir le plateau</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="end-screen" id="confirm" hidden>
+      <div class="end-card" role="alertdialog" aria-labelledby="confirm-title">
+        <h2 id="confirm-title"></h2>
+        <p id="confirm-text"></p>
+        <div class="end-actions">
+          <button id="confirm-ok" class="btn"></button>
+          <button id="confirm-cancel" class="btn btn-ghost">Continuer la partie</button>
         </div>
       </div>
     </div>
@@ -105,11 +184,11 @@
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M9 14L4 9l5-5" /><path d="M4 9h11a5 5 0 0 1 0 10h-3" />
         </svg>
-        Annuler le coup
+        <span>Annuler le coup</span>
       </button>
       <button id="btn-rules" class="btn" title="Fiche de règles (R)">Règles</button>
-      <button id="btn-default" class="btn">Vue par défaut</button>
-      <button id="btn-top" class="btn">Vue de dessus</button>
+      <button id="btn-restart" class="btn" aria-label="Recommencer" title="Recommencer avec le même terrain et les mêmes options"><span class="long">Recommencer</span><span class="short" aria-hidden="true">↻</span></button>
+      <button id="btn-menu" class="btn" title="Retour à l'accueil">Menu</button>
       <button id="btn-sound" class="btn btn-icon" aria-label="Couper le son" title="Couper le son (M)">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <path d="M4 9.5h3.5L12 5v14l-4.5-4.5H4z" fill="currentColor" stroke="none" />

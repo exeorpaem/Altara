@@ -1,7 +1,7 @@
 // Page principale (aperçu jouable) : terrain, pièces, sélection et déplacements.
 import * as THREE from 'three';
 import { RULES, type PlayerId } from './engine/rules';
-import { TERRAIN_MODES, type TerrainMode } from './engine/terrain';
+import { TERRAIN_MODES, generateTerrain, type TerrainMode } from './engine/terrain';
 import { randomSeed } from './engine/random';
 import { LocalEngine } from './engine/engine';
 import { buildBoard, type BoardView } from './render/board';
@@ -17,6 +17,11 @@ import { GameClock, formatClock } from './ui/clock';
 import type { TimeControl } from './engine/engine';
 import { AI_LEVELS, levelNumber, type AiLevel } from './engine/ai/search';
 import { setupRulesPanel } from './ui/rules-panel';
+import { tally } from './engine/tally';
+import { setupTheme } from './ui/theme';
+import { stateAtPly } from './engine/replay';
+import { PIECES } from './engine/rules';
+import { MODE_BLURB, drawTerrainPreview } from './ui/home';
 import type { GameState } from './engine/types';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -30,9 +35,10 @@ scene.add(clouds.group);
 const modeEl = $<HTMLSelectElement>('mode');
 const seedEl = $<HTMLInputElement>('seed');
 for (const m of TERRAIN_MODES) modeEl.add(new Option(m.label, m.id));
+const homeEl = $('home');
 
 const params = new URLSearchParams(location.search);
-modeEl.value = params.get('mode') ?? 'random';
+modeEl.value = TERRAIN_MODES.some((m) => m.id === params.get('mode')) ? params.get('mode')! : 'random';
 seedEl.value = (params.get('seed') ?? randomSeed()).toUpperCase();
 
 // Le paramètre d'URL `skin=` des anciens liens est ignoré : le skin découle du terrain.
@@ -43,15 +49,33 @@ let island: THREE.Group | null = null;
 let decor: DecorView | null = null;
 let view: GameView | null = null;
 
+// --- Mode daltonien (mémorisé ; localStorage peut être indisponible) ---------------------
+let colorblind = false;
+try {
+  colorblind = localStorage.getItem('altara.colorblind') === '1';
+} catch {
+  /* navigateur sans stockage : on garde la valeur par défaut */
+}
+document.body.classList.toggle('cb', colorblind);
+
 // ---------------------------------------------------------------------------
 // Skin (déterminé par le mode de terrain)
 // ---------------------------------------------------------------------------
+/** Thème sombre : ciel, brume et nuages sont assombris (la palette du terrain et le plateau ne changent pas). */
+let darkUi = false;
+const NIGHT = new THREE.Color('#12152b');
+const dim = (hex: string, k: number) => new THREE.Color(hex).lerp(NIGHT, darkUi ? k : 0);
+function applySky() {
+  const s = skin;
+  document.documentElement.style.setProperty('--sky-top', `#${dim(s.sky.top, 0.78).getHexString()}`);
+  document.documentElement.style.setProperty('--sky-bottom', `#${dim(s.sky.bottom, 0.78).getHexString()}`);
+  (scene.fog as THREE.Fog).color.copy(dim(s.fog, 0.78));
+  clouds.setColor(`#${dim(s.cloud, 0.6).getHexString()}`);
+  renderer.toneMappingExposure = darkUi ? 1.0 : 1.3;
+}
 function applySkin(s: Skin) {
   skin = s;
-  document.documentElement.style.setProperty('--sky-top', s.sky.top);
-  document.documentElement.style.setProperty('--sky-bottom', s.sky.bottom);
-  (scene.fog as THREE.Fog).color.set(s.fog);
-  clouds.setColor(s.cloud);
+  applySky();
   if (island) scene.remove(island);
   island = buildIsland(RULES.board.size, s);
   scene.add(island);
@@ -68,7 +92,7 @@ function rebuildBoard() {
     decor.dispose();
   }
   const terrain = engine.getState().terrain;
-  board = buildBoard(terrain, RULES.board.maxHeight, skin);
+  board = buildBoard(terrain, RULES.board.maxHeight, skin, colorblind);
   scene.add(board.group);
   decor = buildDecor(terrain, skin);
   scene.add(decor.group);
@@ -83,6 +107,8 @@ function newGame() {
   const seed = seedEl.value.trim().toUpperCase() || randomSeed();
   seedEl.value = seed;
   engine = LocalEngine.create(mode, seed, timeControl(), firstPlayer());
+  homeEl.hidden = true;
+  document.body.classList.remove('at-home');
   clock.reset();
   ai.cancel();
   gameToken++;
@@ -90,6 +116,7 @@ function newGame() {
   lastCurrent = engine.getState().current;
   endPlayed = false;
   seenHistory = 0;
+  replayPly = null;
   hideEnd();
   view?.dispose();
   view = null;
@@ -106,6 +133,7 @@ function newGame() {
     scoreTarget: (p) => $(`score-${p}`),
     onSfx: (e) => sound.play(e),
     takeElapsed: () => clock.take(),
+    accessible: colorblind,
   });
   onStateChange();
   updateUrl();
@@ -169,7 +197,6 @@ function timeControl(): TimeControl | null {
   if (!(m > 0) || !(inc >= 0)) return { minutes: 10, incrementSec: 0 };
   return { minutes: m, incrementSec: inc };
 }
-cadenceEl.onchange = newGame; // une nouvelle cadence s'applique à une nouvelle partie
 let lastTickSec = -1;
 
 /** Rafraîchit l'affichage des pendules et fait tomber le drapeau à 0. */
@@ -230,10 +257,19 @@ function refreshLevelUi() {
   $('ai-level-name').textContent = cfg.name;
   $('ai-level-hint').textContent = cfg.hint;
   $('ai-level-box').hidden = opponentEl.value === 'local';
+  liveLevelEl.value = levelEl.value;
+  $('ai-level-live-num').textContent = levelEl.value;
+  $('live-level-box').hidden = opponentEl.value === 'local';
 }
+const liveLevelEl = $<HTMLInputElement>('ai-level-live');
 levelEl.oninput = () => {
   refreshLevelUi();
   updateUrl(); // s'applique dès le prochain coup de l'IA
+};
+// Le curseur du panneau de jeu règle le même niveau que celui de l'accueil.
+liveLevelEl.oninput = () => {
+  levelEl.value = liveLevelEl.value;
+  levelEl.oninput!(new Event('input'));
 };
 refreshLevelUi();
 
@@ -243,6 +279,7 @@ function onStateChange() {
   const label = TERRAIN_MODES.find((m) => m.id === s.terrain.mode)!.label;
   $('info').textContent = `${label} · seed ${s.terrain.seed}`;
   $('turn-dot').style.background = COLORS[s.current];
+  $('turn-dot').dataset.camp = String(s.current);
   const myTurnVsAi = aiLevel() && s.current !== AI_PLAYER;
   $('turn-text').textContent = s.result
     ? 'Partie terminée'
@@ -252,13 +289,18 @@ function onStateChange() {
         ? `À toi de jouer (${NAMES[s.current]})`
         : `${NAMES[s.current]} joue`;
   $('turn-text').parentElement!.classList.toggle('thinking', thinking);
-  $('turn-count').textContent = String(s.turn);
+  // Après le 200e coup : le camp qui a commencé joue un dernier coup de réponse.
+  $('turn-count').textContent = s.turn >= RULES.maxTurns && !s.result ? `${s.turn} · réponse finale` : String(s.turn);
   for (const p of [1, 2] as PlayerId[]) {
     // Sorties (2 = victoire) et points (Force des pièces sorties, utilisés à la limite de coups).
     const exited = s.pieces.filter((x) => x.player === p && x.status === 'exited').length;
     $(`score-${p}`).querySelector('b')!.textContent = String(exited);
     $(`score-${p}`).querySelector('em')!.textContent = `· ${s.score[p]} pt${s.score[p] > 1 ? 's' : ''}`;
   }
+
+  renderTally(s);
+  renderHistory(s);
+  refreshReplayUi();
 
   // Passes survenues depuis le dernier affichage (le moteur les joue tout seul).
   const fresh = s.history.slice(seenHistory);
@@ -312,8 +354,97 @@ async function aiTurn() {
   if (token !== gameToken || !view) return;
   thinking = false;
   view.locked = false;
-  if (res.move) await view.playMove(res.move); // playMove appelle onStateChange à la fin
+  if (res.move && view.replaying) {
+    // Relecture affichée : l'IA joue en coulisses, sans animation ; un indicateur signale le nouveau coup.
+    engine.play(res.move, clock.take());
+    onStateChange();
+  } else if (res.move) await view.playMove(res.move); // playMove appelle onStateChange à la fin
   else onStateChange();
+}
+
+// --- Historique et relecture ---------------------------------------------------------
+/** Coup affiché en relecture (nombre d'enregistrements joués), ou null au présent. */
+let replayPly: number | null = null;
+/** Nombre de coups au moment d'entrer en relecture : sert à signaler les coups arrivés depuis. */
+let replayBaseN = 0;
+const histList = $('hist-list');
+
+function renderHistory(s: GameState) {
+  const N = s.history.length;
+  $('hist-count').textContent = N ? `(${N})` : '';
+  const active = replayPly ?? N;
+  histList.innerHTML = s.history
+    .map((h, i) => {
+      const cls = `${h.pass ? 'pass ' : ''}${i + 1 === active ? 'cur' : ''}`;
+      return `<li><button type="button" class="hist-row ${cls}" data-ply="${i + 1}" data-camp="${h.player}"><span class="hn">${i + 1}.</span><i data-camp="${h.player}"></i><span class="hnot">${h.notation}</span></button></li>`;
+    })
+    .join('');
+  if (!N) histList.innerHTML = '<li class="hist-empty">Aucun coup joué</li>';
+  const cur = histList.querySelector('.cur');
+  if (cur) cur.scrollIntoView({ block: 'nearest' });
+}
+histList.onclick = (e) => {
+  const row = (e.target as HTMLElement).closest<HTMLElement>('.hist-row');
+  if (row) showPly(Number(row.dataset.ply));
+};
+
+function showPly(n: number) {
+  if (!view || view.busy) return;
+  const s = engine.getState();
+  if (n >= s.history.length) return exitReplay();
+  if (replayPly === null) replayBaseN = s.history.length;
+  replayPly = Math.max(0, n);
+  view.setReplay(new LocalEngine(stateAtPly(s, replayPly)));
+  renderHistory(s);
+  refreshReplayUi();
+}
+function exitReplay() {
+  if (replayPly === null) return;
+  replayPly = null;
+  view?.setReplay(null);
+  renderHistory(engine.getState());
+  refreshReplayUi();
+}
+function refreshReplayUi() {
+  const bar = $('replay-bar');
+  bar.hidden = replayPly === null;
+  document.body.classList.toggle('replaying', replayPly !== null);
+  if (replayPly === null) return;
+  const N = engine.getState().history.length;
+  $('rpl-label').textContent = `Relecture – coup ${replayPly} / ${N}`;
+  $<HTMLButtonElement>('rpl-prev').disabled = replayPly <= 0;
+  $('rpl-new').hidden = N <= replayBaseN;
+}
+$('rpl-prev').onclick = () => replayPly !== null && showPly(replayPly - 1);
+$('rpl-next').onclick = () => replayPly !== null && showPly(replayPly + 1);
+$('rpl-live').onclick = exitReplay;
+window.addEventListener('keydown', (e) => {
+  const t = e.target as HTMLElement | null;
+  if (!engine || !view || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (t && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))) return;
+  if (!$('confirm').hidden || !$('end').hidden || document.querySelector('.rp-overlay:not([hidden])')) return;
+  if (e.key === 'ArrowLeft') {
+    const cur = replayPly ?? engine.getState().history.length;
+    if (cur > 0) showPly(cur - 1);
+    e.preventDefault();
+  } else if (e.key === 'ArrowRight' && replayPly !== null) {
+    showPly(replayPly + 1);
+    e.preventDefault();
+  } else if (e.key === 'Escape' && replayPly !== null) exitReplay();
+});
+
+/** Pastilles des pièces sorties et capturées de chaque camp (lettre = type, couleur = camp). */
+function renderTally(s: GameState) {
+  const t = tally(s);
+  const chips = (types: string[], p: PlayerId, cls: string) =>
+    types.length
+      ? types.map((ty) => `<span class="pc pc-${p} ${cls}" title="${PIECES[ty as keyof typeof PIECES].name}">${PIECES[ty as keyof typeof PIECES].letter}</span>`).join('')
+      : '<span class="pc-none">—</span>';
+  for (const p of [1, 2] as PlayerId[]) {
+    $(`tally-${p}`).innerHTML =
+      `<i data-camp="${p}"></i><span class="tl-grp"><small>Sorties</small>${chips(t[p].exited, p, 'ex')}<em>${t[p].points} pt${t[p].points > 1 ? 's' : ''}</em></span>` +
+      `<span class="tl-grp"><small>Capturées</small>${chips(t[p].captured, p, 'cap')}</span>`;
+  }
 }
 
 function toast(msg: string) {
@@ -348,13 +479,15 @@ function showEnd(s: GameState) {
     moveLimit:
       s.score[1] || s.score[2]
         ? `Limite de ${RULES.maxTurns} coups atteinte : ${w === 'draw' ? `égalité au score (${sc})` : `${NAMES[w]} a le meilleur score (${sc})`}.`
-        : `Limite de ${RULES.maxTurns} coups atteinte sans sortie : ${w === 'draw' ? 'pièces les plus avancées à égalité (rangées et Force).' : `la pièce la plus avancée de ${NAMES[w]} est la plus proche de la sortie.`}`,
+        : RULES.limitScoreOnly
+          ? `Limite de ${RULES.maxTurns} coups atteinte sans sortie : partie nulle.`
+          : `Limite de ${RULES.maxTurns} coups atteinte sans sortie : ${w === 'draw' ? 'pièces les plus avancées à égalité (rangées et Force).' : `la pièce la plus avancée de ${NAMES[w]} est la plus proche de la sortie.`}`,
   };
   $('end-reason').textContent = reasons[r.reason];
   $('end-score').innerHTML = ([1, 2] as PlayerId[])
     .map((p) => {
       const ex = s.pieces.filter((x) => x.player === p && x.status === 'exited').length;
-      return `<span><i style="background:${COLORS[p]}"></i>${NAMES[p]} <b>${ex}</b> sortie${ex > 1 ? 's' : ''} · ${s.score[p]} pt${s.score[p] > 1 ? 's' : ''}</span>`;
+      return `<span><i data-camp="${p}" style="background:${COLORS[p]}"></i>${NAMES[p]} <b>${ex}</b> sortie${ex > 1 ? 's' : ''} · ${s.score[p]} pt${s.score[p] > 1 ? 's' : ''}</span>`;
     })
     .join('');
   card.hidden = false;
@@ -371,9 +504,6 @@ $('end-replay').onclick = newGame;
 opponentEl.onchange = () => {
   refreshLevelUi();
   refreshFirstLabels();
-  updateUrl();
-  // Si c'est désormais au tour de l'IA, elle joue.
-  if (!thinking && engine && !engine.getState().result && aiLevel() && engine.getState().current === AI_PLAYER) void aiTurn();
 };
 
 // Qui commence : Corail, Lagon ou tiré au sort à chaque nouvelle partie.
@@ -389,7 +519,6 @@ function refreshFirstLabels() {
   firstEl.options[0].text = vsAi ? 'Corail (toi)' : 'Corail';
   firstEl.options[1].text = vsAi ? "Lagon (l'IA)" : 'Lagon';
 }
-firstEl.onchange = newGame; // s'applique à une nouvelle partie
 
 function updateUrl() {
   try {
@@ -399,13 +528,120 @@ function updateUrl() {
   }
 }
 
-$('btn-new-game').onclick = newGame;
-$('btn-new-seed').onclick = () => {
-  seedEl.value = randomSeed();
+// --- Accueil -----------------------------------------------------------------------
+const chipsEl = $('terrain-chips');
+for (const m of TERRAIN_MODES) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'chip';
+  b.dataset.mode = m.id;
+  b.textContent = m.label;
+  b.setAttribute('role', 'radio');
+  b.onclick = () => {
+    modeEl.value = m.id;
+    refreshHome();
+  };
+  chipsEl.appendChild(b);
+}
+let previewTimer = 0;
+/** Met l'accueil à jour : puces, description, mini-aperçu et plateau 3D visible derrière la fiche. */
+function refreshHome() {
+  const mode = modeEl.value as TerrainMode;
+  for (const b of chipsEl.children) b.setAttribute('aria-checked', String((b as HTMLElement).dataset.mode === mode));
+  $('terrain-desc').textContent = MODE_BLURB[mode];
+  const seed = seedEl.value.trim().toUpperCase() || 'HASARD';
+  drawTerrainPreview($<HTMLCanvasElement>('terrain-preview'), generateTerrain(mode, seed).heights, skinForMode(mode), RULES.board.maxHeight);
+  clearTimeout(previewTimer);
+  previewTimer = window.setTimeout(previewBoard, 150);
+}
+/** Plateau d'ambiance derrière l'accueil (aucune partie n'est lancée). */
+function previewBoard() {
+  if (view || homeEl.hidden) return;
+  const mode = modeEl.value as TerrainMode;
+  engine = LocalEngine.create(mode, seedEl.value.trim().toUpperCase() || 'HASARD', null, 1);
+  applySkin(skinForMode(mode));
+  rebuildBoard();
+}
+function showHome() {
+  ai.cancel();
+  gameToken++;
+  thinking = false;
+  clock.reset();
+  hideEnd();
+  replayPly = null;
+  view?.dispose();
+  view = null;
+  homeEl.hidden = false;
+  document.body.classList.add('at-home');
+  try {
+    history.replaceState(null, '', params.has('debug') ? '?debug' : location.pathname);
+  } catch {
+    /* sans importance */
+  }
+  if (!seedEl.value.trim()) seedEl.value = randomSeed();
+  refreshHome();
+  rig.defaultView(1);
+}
+$('btn-play').onclick = () => {
+  if (!seedEl.value.trim()) seedEl.value = randomSeed();
   newGame();
 };
-modeEl.onchange = newGame;
-seedEl.onkeydown = (e) => e.key === 'Enter' && newGame();
+$('btn-home-rules').onclick = () => $('btn-rules').click();
+// Partie en cours = au moins un coup joué et pas de résultat : on demande confirmation avant de la perdre.
+const inProgress = () => !!engine && !!view && !engine.getState().result && engine.getState().history.length > 0;
+function askConfirm(title: string, text: string, okLabel: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    $('confirm-title').textContent = title;
+    $('confirm-text').textContent = text;
+    $('confirm-ok').textContent = okLabel;
+    $('confirm').hidden = false;
+    const done = (v: boolean) => {
+      $('confirm').hidden = true;
+      window.removeEventListener('keydown', onKey, true);
+      resolve(v);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation();
+        done(false);
+      }
+    };
+    window.addEventListener('keydown', onKey, true);
+    $('confirm-ok').onclick = () => done(true);
+    $('confirm-cancel').onclick = () => done(false);
+  });
+}
+async function goMenu() {
+  if (inProgress() && !(await askConfirm('Retourner au menu ?', 'La partie en cours sera abandonnée.', 'Retour au menu'))) return;
+  showHome();
+}
+async function restart() {
+  if (inProgress() && !(await askConfirm('Recommencer ?', 'Même terrain, même seed, mêmes options : la partie en cours sera perdue.', 'Recommencer'))) return;
+  newGame();
+}
+const cbEl = $<HTMLInputElement>('colorblind');
+cbEl.checked = colorblind;
+cbEl.onchange = () => {
+  colorblind = cbEl.checked;
+  try {
+    localStorage.setItem('altara.colorblind', colorblind ? '1' : '0');
+  } catch {
+    /* sans importance */
+  }
+  document.body.classList.toggle('cb', colorblind);
+  if (engine) rebuildBoard(); // motif sur les rangées d'arrivée
+  view?.setAccessible(colorblind);
+};
+$('btn-menu').onclick = goMenu;
+$('end-menu').onclick = showHome;
+$('btn-restart').onclick = restart;
+$('btn-new-seed').onclick = () => {
+  seedEl.value = randomSeed();
+  refreshHome();
+};
+modeEl.onchange = refreshHome;
+seedEl.oninput = refreshHome;
+seedEl.onkeydown = (e) => e.key === 'Enter' && $('btn-play').click();
 // --- Annuler un coup ------------------------------------------------------------
 const undoBtn = $<HTMLButtonElement>('btn-undo');
 const endUndoBtn = $<HTMLButtonElement>('end-undo');
@@ -430,6 +666,7 @@ function refreshUndo() {
 
 function undoMove() {
   if (!canUndo()) return;
+  exitReplay();
   // Si l'IA est en train de réfléchir, on interrompt sa réflexion.
   if (thinking) {
     ai.cancel();
@@ -461,13 +698,28 @@ window.addEventListener('keydown', (e) => {
 $('btn-default').onclick = () => rig.defaultView(engine.getState().current);
 $('btn-top').onclick = () => rig.topView();
 $<HTMLInputElement>('follow').onchange = (e) => (e.target as HTMLInputElement).checked && rig.defaultView(engine.getState().current);
-// Sur petit écran, le panneau démarre replié.
-if (window.innerWidth < 760) ($('panel') as HTMLDetailsElement).open = false;
+// Sur petit écran (< 700 px), les tiroirs (réglages, historique, légende) démarrent repliés
+// et un seul peut être ouvert à la fois.
+const narrow = () => window.innerWidth < 700;
+const drawers = [...document.querySelectorAll<HTMLDetailsElement>('details.drawer')];
+if (narrow()) for (const d of drawers) d.open = false;
+for (const d of drawers) {
+  d.addEventListener('toggle', () => {
+    if (d.open && narrow()) for (const o of drawers) if (o !== d) o.open = false;
+    document.body.classList.toggle('drawer-open', drawers.some((x) => x.open));
+  });
+}
 
 setupRulesPanel($('btn-rules'));
+setupTheme((dark) => {
+  darkUi = dark;
+  applySky();
+});
 applySkin(skin);
 refreshFirstLabels();
-newGame();
+// Lien partagé (mode, seed, adversaire…) : on lance la partie directement ; sinon, accueil.
+if (['mode', 'seed', 'ai', 'cadence', 'first'].some((k) => params.has(k))) newGame();
+else showHome();
 
 // Accès de débogage (tests automatisés) : ?debug dans l'URL.
 if (params.has('debug')) {

@@ -95,11 +95,11 @@ entrée comprise avec le dénivelé). Légal si **attaque ≥ défense** ; le d�
   est **sortie**, il **gagne** si l'adversaire ne peut plus l'égaler (score + Force de ses pièces restantes), partie
   **nulle** si l'adversaire peut au mieux égaliser, sinon il **perd**. Une pièce capturée ne compte jamais
   comme une sortie. Chaque sortie rapporte aussi la Force de la pièce en points (utilisés à la limite de coups).
-- 200 coups (un coup = le tour d'un joueur, passes comprises) : meilleur score en points ; si personne n'a marqué,
-  la pièce la plus avancée (moins de rangées à franchir), puis la plus grande Force de cette pièce, sinon nulle.
+- 200 coups (un coup = le tour d'un joueur, passes comprises) : seul le score en points compte, égalité = nulle. (Ancienne règle : si personne n'a marqué,
+  la pièce la plus avancée (moins de rangées à franchir), puis la plus grande Force de cette pièce, sinon nulle ; abandonnée car elle favorisait le dernier à jouer.)
   (Un joueur sans pièce a déjà perdu avant d'arriver là.)
 - Un joueur sans coup légal passe son tour (affiché à l'écran).
-- **Pendule** (cadence choisie dans le panneau, 10+0 par défaut : 10 minutes par joueur, sans incrément) :
+- **Pendule** (cadence choisie sur l'écran d'accueil, 10+0 par défaut : 10 minutes par joueur, sans incrément) :
   le joueur dont la pendule tombe à 0 perd (raison « time »). Seul le temps de réflexion est décompté :
   la pendule s'arrête dès que le coup est choisi (pas pendant les animations). Autres cadences : 5+0, 3+2, 15+10, sans limite.
 
@@ -109,9 +109,9 @@ L'IA tourne dans un **Web Worker** (`src/ai/worker.ts`) qui n'importe que `engin
 Si la page hôte interdit les workers (iframe avec politique de sécurité stricte, aperçu intégré…), le client
 (`src/ai/client.ts`) s'en aperçoit (poignée de main au démarrage, délai de garde à chaque coup) et l'IA calcule
 alors sur le fil principal : l'affichage se fige pendant sa réflexion (Difficile limité à 1 s par coup dans ce cas).
-Elle joue Lagon (J2). Choix du niveau et de la seed dans le panneau « Partie & décor ».
+Elle joue Lagon (J2). Choix du niveau sur l'écran d'accueil (modifiable ensuite dans le panneau « Réglages »).
 
-Échelle de difficulté de **1 à 10** (curseur dans le panneau ; réglages dans `AI_LEVELS`, `search.ts`) :
+Échelle de difficulté de **1 à 10** (curseur à l'accueil et dans le panneau ; réglages dans `AI_LEVELS`, `search.ts`) :
 
 | Niveau | Nom | Méthode |
 |---|---|---|
@@ -166,6 +166,22 @@ Moteur : `GameEngine.getPotentialMoves(pieceId)`.
 **Annuler le coup** (bouton en bas, **Ctrl+Z**, ou depuis l'écran de fin) : défait le dernier coup. Contre l'IA, on
 revient à son propre tour (la réponse de l'IA est annulée aussi), même pendant que l'IA réfléchit. Le bouton est grisé
 quand il n'y a rien à annuler ; une défaite au temps ne s'annule pas. La pendule revient à son état d'avant le coup.
+
+## Interface : accueil, historique, mobile, accessibilité
+
+- **Accueil** (`src/ui/home.ts` + `index.html`) : adversaire (IA + niveau / 2 joueurs), terrain (aperçu des hauteurs et
+  description), qui commence, cadence, seed facultative, « Jouer », lien « Règles ». Un lien contenant `mode`, `seed`, `ai`,
+  `cadence` ou `first` lance directement la partie. En jeu : **Recommencer** (mêmes options) et **Menu** (confirmation si
+  une partie est en cours).
+- **Sorties / captures** : pastilles par camp et par type, calculées par `src/engine/tally.ts` (fonction pure, suit l'annulation).
+- **Historique** : panneau repliable (notation, camp, passes). Un clic relit la position (`src/engine/replay.ts` rejoue
+  l'historique avec le moteur ; la vue l'affiche en lecture seule via `GameView.setReplay`). ← → naviguent, Échap
+  revient au présent. La pendule et l'IA continuent ; un coup arrivé pendant la relecture est signalé.
+- **Mobile** (< 700 px) : réglages, historique et légende en tiroirs (un seul ouvert), boutons de 44 px minimum.
+- **Mode daltonien** (case à cocher, mémorisée) : anneau plein (Corail) ou pointillé (Lagon) sur le socle des pièces,
+  cadres pleins / en tirets sur les rangées d'arrivée, rond / losange dans les pastilles de l'interface.
+- **Thème** Auto / Clair / Sombre (`src/ui/theme.ts`, variables CSS dans `base.css`, attribut `data-theme` sur `<html>`,
+  mémorisé). En sombre, seuls le ciel, la brume, les nuages et l'exposition sont assombris ; palettes des terrains inchangées.
 
 ## Son
 
