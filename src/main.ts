@@ -6,6 +6,7 @@ import { randomSeed } from './engine/random';
 import { LocalEngine } from './engine/engine';
 import { buildBoard, type BoardView } from './render/board';
 import { buildClouds, buildIsland } from './render/environment';
+import { buildDecor, type DecorView } from './render/decor';
 import { createSceneKit } from './render/scene';
 import { createCameraRig } from './render/camera';
 import { GameView } from './render/game-view';
@@ -37,6 +38,7 @@ let skin: Skin = skinById(params.get('skin'));
 let engine: LocalEngine;
 let board: BoardView | null = null;
 let island: THREE.Group | null = null;
+let decor: DecorView | null = null;
 let view: GameView | null = null;
 
 // ---------------------------------------------------------------------------
@@ -71,8 +73,16 @@ function rebuildBoard() {
     scene.remove(board.group);
     board.dispose();
   }
-  board = buildBoard(engine.getState().terrain, RULES.board.maxHeight, skin);
+  // Décor dépendant du mode (terrain) et du skin : libéré puis reconstruit à chaque partie / skin.
+  if (decor) {
+    scene.remove(decor.group);
+    decor.dispose();
+  }
+  const terrain = engine.getState().terrain;
+  board = buildBoard(terrain, RULES.board.maxHeight, skin);
   scene.add(board.group);
+  decor = buildDecor(terrain, skin);
+  scene.add(decor.group);
   if (view) view.setBoard(board);
 }
 
@@ -332,7 +342,12 @@ function showEnd(s: GameState) {
   const reasons: Record<string, string> = {
     sentinel: w !== 'draw' ? `La Sentinelle de ${NAMES[w]} est sortie : victoire immédiate.` : '',
     secondExit: w !== 'draw' ? `${NAMES[w]} a fait sortir sa deuxième pièce.` : '',
-    eliminated: w !== 'draw' ? `${NAMES[w === 1 ? 2 : 1]} n'a plus aucune pièce sur le plateau.` : '',
+    eliminated:
+      w === 'draw'
+        ? `Plus aucune pièce sur le plateau pour un camp, et l'autre ne peut au mieux qu'égaliser (${sc}).`
+        : s.pieces.some((x) => x.player === w && x.status === 'board')
+          ? `${NAMES[w === 1 ? 2 : 1]} n'a plus aucune pièce sur le plateau.`
+          : `${NAMES[w]} a sorti sa dernière pièce et ne peut plus être rattrapé (${sc}).`,
     score: w === 'draw' ? `Deux pièces sont sorties et les scores sont à égalité (${sc}).` : `Deux pièces sont sorties : ${NAMES[w]} mène ${sc} au score.`,
     time: w !== 'draw' ? `Temps écoulé : ${NAMES[w === 1 ? 2 : 1]} n'a plus de temps à sa pendule.` : '',
     moveLimit:
