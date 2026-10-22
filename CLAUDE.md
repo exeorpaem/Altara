@@ -26,7 +26,7 @@ ni les éléments graphiques du jeu d'origine.
 ```bash
 npm install
 npm run dev          # jeu : http://localhost:5173/ · vitrine des pièces : /showcase/
-npm test             # tests Vitest (108) (tous doivent passer avant chaque commit)
+npm test             # tests Vitest (115) (tous doivent passer avant chaque commit)
 npx tsc --noEmit     # vérification des types
 npm run build        # build de production (BASE_PATH=/Altara/ pour GitHub Pages)
 npm run selfplay -- --duel 50 --equity 100 --jobs 4
@@ -55,7 +55,7 @@ src/engine/   PUR TypeScript (ni Three.js ni DOM) — toute la logique de jeu
   ai/evaluate.ts  évaluation + EVAL_WEIGHTS ; ai/search.ts  niveaux 1–10 (AI_LEVELS), alpha-bêta, TT
 src/ai/       Web Worker de l'IA + client (poignée de main, délai de garde, repli fil principal)
 src/render/   scène, plateau, pièces procédurales, game-view (sélection, marqueurs, animations), skins (une palette par mode de terrain)
-src/ui/       CSS, pendule (clock.ts), sound design Web Audio (sound.ts), fiche de règles (rules-panel.ts)
+src/ui/       CSS, pendule (clock.ts), sound design Web Audio (sound.ts), fiche de règles (rules-panel.ts), accueil (home.ts), thème (theme.ts), CSS : base / game / home / panels
 src/main.ts   page de jeu (branche tout ensemble)
 scripts/selfplay.ts   IA contre IA sans rendu, rapport dans reports/
 .github/workflows/    ci.yml (types + tests + build) · pages.yml (déploiement GitHub Pages)
@@ -118,7 +118,7 @@ implémentation des règles (core/actions) sert à l'interface ET à l'IA.
 
 ## Fait (résumé)
 
-Moteur complet et testé (108 tests) · rendu low-poly pastel, palette (skin) imposée par le terrain (10 palettes), île flottante · sélection,
+Moteur complet et testé (115 tests) · rendu low-poly pastel, palette (skin) imposée par le terrain (10 palettes), île flottante · sélection,
 marqueurs, aperçu de chemin, animations · inspection des pièces adverses (anneaux creux) · anneau gris
 des attaques refusées avec explication · IA 1 à 10 dans un Web Worker · pendule · sound design
 synthétisé (une gamme pentatonique, voix par camp, ambiance) · bouton Annuler / Ctrl+Z · clic droit =
@@ -126,14 +126,21 @@ désélection · CI et déploiement GitHub Pages · fiche de règles · choix du
 10 modes de terrain avec décors 3D (src/render/decor.ts). Mode en ligne : abandonné. Design des
 pièces : on garde le design d'origine (styles alternatifs essayés puis abandonnés).
 
+## Interface ajoutée (session UI)
+
+Accueil, Recommencer/Menu, décompte sorties/captures (`engine/tally.ts`), historique + relecture (`engine/replay.ts`,
+`GameView.setReplay`), mobile < 700 px (tiroirs), mode daltonien (`altara.colorblind`), thème Auto/Clair/Sombre
+(`altara.theme`, variables CSS). Pièges : `updateUrl()` retire `?debug` de l'URL (recharger via goto avec `&debug`) ;
+pendant une relecture, l'IA joue directement sur le moteur réel (pas d'animation).
+
 ## Reste à faire (cahier des charges initial, étape 5 non terminée)
 
-- [ ] **Historique** : panneau latéral avec notation, clic = relecture de la position, retour au présent.
+- [x] **Historique** : panneau latéral avec notation, clic = relecture de la position, retour au présent.
 - [ ] **Sauvegarde automatique** (localStorage via serialize/load, try/catch) + reprise proposée à l'accueil.
-- [ ] **Écran d'accueil** (mode, terrain, seed facultative) — aujourd'hui tout est dans le panneau.
-- [ ] **Mode daltonien** : motif ou liseré par camp en plus de la couleur.
+- [x] **Écran d'accueil** (mode, terrain, seed facultative) — aujourd'hui tout est dans le panneau.
+- [x] **Mode daltonien** : motif ou liseré par camp en plus de la couleur.
 - [x] **Fiche de règles** : bouton « Règles » / touche R (`src/ui/rules-panel.ts`, contenu lu depuis RULES/PIECES).
-- [ ] Boutons Recommencer / Menu en jeu ; affichage des pièces sorties et capturées.
+- [x] Boutons Recommencer / Menu en jeu ; affichage des pièces sorties et capturées.
 - [ ] Relancer le self-play d'équité avec la nouvelle règle de fin et commenter les résultats.
 - [x] GitHub Actions vertes, Pages activé (Source : GitHub Actions ; un déploiement peut demander
       une approbation dans l'onglet Actions).

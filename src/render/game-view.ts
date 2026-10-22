@@ -53,6 +53,8 @@ export interface GameViewOptions {
   overlay: HTMLElement; // calque HTML pour les étiquettes
   engine: GameEngine;
   board: BoardView;
+  /** Mode daltonien : repère non coloré sur le socle des pièces. */
+  accessible?: boolean;
   /** Appelé après chaque coup joué (mise à jour de l'interface). */
   onChange?: () => void;
   /** Élément d'interface vers lequel une pièce sortie « s'envole » (score du camp). */
@@ -101,12 +103,19 @@ export class GameView {
    * mais on peut encore inspecter les pièces.
    */
   locked = false;
+  /**
+   * Relecture : la vue affiche la position d'un autre moteur (lecture seule) ; la partie réelle
+   * continue en coulisses. Aucun coup ne peut être joué depuis la vue pendant ce temps.
+   */
+  private live: GameEngine;
+  replaying = false;
   /** La sélection courante est une inspection (pièce non jouable) : marqueurs creux, rien n'est jouable. */
   private inspecting = false;
   private banner: HTMLDivElement;
 
   constructor(o: GameViewOptions) {
     this.o = o;
+    this.live = o.engine;
     this.root.name = 'game';
     this.root.add(this.lastMove, this.markers, this.preview, this.fx);
     o.scene.add(this.root);
@@ -132,6 +141,21 @@ export class GameView {
   // ---------------------------------------------------------------------------
   // Synchronisation avec l'état du moteur
   // ---------------------------------------------------------------------------
+
+  /** Active / coupe le mode daltonien : les pièces sont reconstruites avec (ou sans) leur repère. */
+  setAccessible(on: boolean) {
+    this.o.accessible = on;
+    for (const v of this.pieces.values()) this.root.remove(v.holder);
+    this.pieces.clear();
+    this.sync();
+  }
+
+  /** Affiche la position d'un moteur de relecture (lecture seule), ou revient à la partie réelle avec null. */
+  setReplay(engine: GameEngine | null) {
+    this.replaying = engine !== null;
+    this.o.engine = engine ?? this.live;
+    this.sync();
+  }
 
   /** Remplace le plateau (changement de skin) en gardant la partie. */
   setBoard(board: BoardView) {
@@ -162,7 +186,7 @@ export class GameView {
 
   private makePieceView(p: Piece): PieceView {
     const holder = new THREE.Group();
-    const model = buildPieceMesh({ type: p.type, player: p.player });
+    const model = buildPieceMesh({ type: p.type, player: p.player, accessible: this.o.accessible });
     // L'avant du modèle est +Z local ; J1 sort vers −Z (rangée 9), J2 vers +Z.
     model.rotation.y = p.player === 1 ? Math.PI : 0;
     holder.add(model);
@@ -228,7 +252,7 @@ export class GameView {
   select(pieceId: string) {
     const state = this.o.engine.getState();
     const p = state.pieces.find((x) => x.id === pieceId);
-    if (!p || p.player !== state.current || p.status !== 'board' || this.locked) return;
+    if (!p || p.player !== state.current || p.status !== 'board' || this.locked || this.replaying) return;
     this.show(pieceId, this.o.engine.getLegalMoves(pieceId), false);
   }
 
@@ -580,7 +604,7 @@ export class GameView {
       this.showBlocked(blocked);
       return;
     }
-    if (move && this.selected && !this.inspecting && !this.locked) {
+    if (move && this.selected && !this.inspecting && !this.locked && !this.replaying) {
       // Au tactile (pas de survol), un premier appui montre l'aperçu, le second joue.
       if (e.pointerType !== 'mouse' && this.hovered !== move) return this.showPreview(move);
       return void this.playMove(move);
@@ -594,7 +618,7 @@ export class GameView {
     const p = pieceId ? state.pieces.find((x) => x.id === pieceId) : undefined;
     if (p) {
       if (this.selected === p.id) this.userDeselect();
-      else if (p.player === state.current && !this.locked) this.select(p.id);
+      else if (p.player === state.current && !this.locked && !this.replaying) this.select(p.id);
       else this.inspect(p.id); // pièce adverse (ou tour de l'IA) : on regarde ses possibilités
       return;
     }
@@ -632,7 +656,7 @@ export class GameView {
   // ---------------------------------------------------------------------------
 
   async playMove(move: Move) {
-    if (this.busy) return;
+    if (this.busy || this.replaying) return;
     this.busy = true;
     const elapsed = this.o.takeElapsed?.() ?? 0;
     this.tooltip.style.display = 'none';

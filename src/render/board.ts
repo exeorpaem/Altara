@@ -73,7 +73,7 @@ export interface BoardView {
   dispose(): void;
 }
 
-export function buildBoard(terrain: Terrain, maxLevel = 6, skin: Skin = SKINS[0]): BoardView {
+export function buildBoard(terrain: Terrain, maxLevel = 6, skin: Skin = SKINS[0], accessible = false): BoardView {
   const { size, heights } = terrain;
   const group = new THREE.Group();
   group.name = 'board';
@@ -132,6 +132,36 @@ export function buildBoard(terrain: Terrain, maxLevel = 6, skin: Skin = SKINS[0]
   blocks.instanceMatrix.needsUpdate = true;
   if (blocks.instanceColor) blocks.instanceColor.needsUpdate = true;
   group.add(blocks, lines);
+
+  // --- Mode daltonien : motif sur les rangées d'arrivée teintées (Corail : cadre plein ; Lagon : cadre en tirets)
+  if (accessible) {
+    const mat = new THREE.MeshBasicMaterial({ color: '#34344a' });
+    const mk = (w: number, d: number, x: number, z: number, top: number) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.012, d), mat);
+      m.position.set(x, top + 0.008, z);
+      group.add(m);
+    };
+    const half = 0.36;
+    const t = 0.045;
+    for (const r of [0, size - 1]) {
+      const solid = r === size - 1; // rangée tintée Corail = cadre plein
+      for (let c = 0; c < size; c++) {
+        const { x, z } = cellCenter(size, r, c);
+        const top = topY(heights[r][c]);
+        for (const s of [-1, 1]) {
+          if (solid) {
+            mk(2 * half, t, x, z + s * half, top);
+            mk(t, 2 * half, x + s * half, z, top);
+          } else {
+            for (const o of [-0.2, 0.2]) {
+              mk(0.24, t, x + o, z + s * half, top);
+              mk(t, 0.24, x + s * half, z + o, top);
+            }
+          }
+        }
+      }
+    }
+  }
 
   // --- Halos au-delà des bords d'arrivée ------------------------------------
   group.add(arrivalHalo(terrain, 1), arrivalHalo(terrain, 2));
