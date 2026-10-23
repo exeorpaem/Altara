@@ -7,10 +7,9 @@
 //   + alliés  : + la Force de base de chaque AUTRE pièce alliée de l'attaquant
 //               orthogonalement adjacente à la cible ;
 //   + charge  : +1 si l'attaquant est une Avant-garde et que le chemin le plus
-//               court jusqu'à la cible PASSANT PAR la case d'appui (entrée comprise)
-//               coûte exactement 4.
-// Quand plusieurs cases d'appui sont possibles, le moteur choisit celle qui donne
-// la meilleure attaque (voir actions.ts).
+//               court jusqu'à la cible (entrée comprise) coûte exactement 4.
+// Seul le chemin le plus court est autorisé (pas de détour) ; parmi les cases d'appui
+// de ce coût minimal, le moteur choisit la meilleure attaque (voir actions.ts).
 // Force de défense = Force de base du défenseur
 //   + renforts : +1 par pièce alliée du défenseur orthogonalement adjacente à lui.
 //

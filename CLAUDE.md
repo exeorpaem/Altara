@@ -26,7 +26,7 @@ ni les éléments graphiques du jeu d'origine.
 ```bash
 npm install
 npm run dev          # jeu : http://localhost:5173/ · vitrine des pièces : /showcase/
-npm test             # tests Vitest (115) (tous doivent passer avant chaque commit)
+npm test             # tests Vitest (117) (tous doivent passer avant chaque commit)
 npx tsc --noEmit     # vérification des types
 npm run build        # build de production (BASE_PATH=/Altara/ pour GitHub Pages)
 npm run selfplay -- --duel 50 --equity 100 --jobs 4
@@ -77,8 +77,9 @@ implémentation des règles (core/actions) sert à l'interface ET à l'IA.
   Légal si attaque ≥ défense (égalité = l'attaquant gagne). Défenseur retiré, l'attaquant prend sa case.
   - Attaque = Force + hauteur (±1 : **case d'appui** — voisine de la cible, d'où l'on entre — vs case
     de la cible) + Force de chaque autre allié adjacent à la cible + charge (+1 Avant-garde si le chemin
-    passant par la case d'appui **coûte** exactement 4).
-  - Case d'appui choisie **automatiquement** : la meilleure attaque, puis la moins chère.
+    le plus court jusqu'à la cible **coûte** exactement 4).
+  - **Seul le chemin le plus court** (coût minimal) est autorisé pour attaquer : pas de détour pour la
+    charge ou la hauteur. À coût minimal égal, case d'appui choisie automatiquement (meilleure attaque).
   - Défense = Force + 1 par allié du défenseur adjacent à lui. Hauteur des alliés/renforts ignorée.
 - Fin de partie (règle actuelle, décidée par l'utilisateur) :
   - une **Sentinelle qui sort fait gagner immédiatement**, seulement si c'est la **1re pièce sortie de
@@ -96,7 +97,7 @@ implémentation des règles (core/actions) sert à l'interface ET à l'IA.
 2. (Tranché) Dernière pièce SORTIE : gagne si l'adversaire ne peut plus l'égaler (score + Force de ses
    pièces restantes < ses points), nulle si au mieux égalité, sinon perd. Dernière pièce CAPTURÉE : perd.
 3. (Tranché) **Charge** : on compte le **coût** du chemin (pas le nombre de cases) ; la charge par
-   contournement (autre case d'appui) est conservée.
+   contournement a été **supprimée** : attaque par le chemin le plus court uniquement.
 4. Notation d'attaque depuis la case de départ (ex. `A G4×H6`).
 
 ## Faits connus / pièges
@@ -111,14 +112,12 @@ implémentation des règles (core/actions) sert à l'interface ET à l'IA.
 - Le Web Worker de l'IA peut être bloqué par une CSP (aperçus intégrés) : le client bascule alors sur
   le fil principal (Difficile limité à 1 s). Ne pas retirer ce repli.
 - Sous Vitest, ne pas dépendre de l'ordre des tests ; les tests de terrain tournent 6 000 générations.
-- Charge + case d'appui automatique : une Avant-garde peut obtenir la charge en contournant la cible
-  (chemin de coût 4 par une autre case d'appui) → 3 contre 3 contre une Sentinelle isolée (voulu).
 - `npm test` exécute aussi les worktrees d'agents sous `.claude/` : utiliser
   `npx vitest run --exclude '.claude/**'` quand il y en a.
 
 ## Fait (résumé)
 
-Moteur complet et testé (115 tests) · rendu low-poly pastel, palette (skin) imposée par le terrain (10 palettes), île flottante · sélection,
+Moteur complet et testé (117 tests) · rendu low-poly pastel, palette (skin) imposée par le terrain (10 palettes), île flottante · sélection,
 marqueurs, aperçu de chemin, animations · inspection des pièces adverses (anneaux creux) · anneau gris
 des attaques refusées avec explication · IA 1 à 10 dans un Web Worker · pendule · sound design
 synthétisé (une gamme pentatonique, voix par camp, ambiance) · bouton Annuler / Ctrl+Z · clic droit =

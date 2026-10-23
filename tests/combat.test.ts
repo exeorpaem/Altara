@@ -75,16 +75,40 @@ describe('combat — modificateurs', () => {
     expect(eng.previewAttack(move).attack).toBe(3);
   });
 
-  it("plusieurs cases d'appui : le moteur prend celle qui donne la meilleure attaque", () => {
-    // Cible à h=0. Appui le moins cher (4,4) à h=0 → 1 contre 1 ; appui (3,5) à h=1 → 2 contre 1.
+  it("pas de détour : seul le chemin le plus court vers la cible est autorisé", () => {
+    // Cible à h=0. Chemin le plus court via (4,4) : coût 3, 1 contre 1. Le détour par (3,5) en hauteur
+    // (coût 5, +1 hauteur) n'est plus permis, même s'il donnerait une meilleure attaque.
     const atk = piece('explorer', 1, 3, 3);
     const def = piece('explorer', 2, 4, 5);
     const eng = new LocalEngine(state(flat([[3, 4, 1], [3, 5, 1]]), [atk, def]));
     const move = attackOn(eng.getLegalMoves(atk.id), def.id)!;
-    expect(move.path.at(-2)).toEqual({ row: 3, col: 5 });
-    expect(move.cost).toBe(5); // montée (2) + plat (1) + entrée en descente (2)
-    const pv = eng.previewAttack(move);
-    expect([pv.attack, pv.defense]).toEqual([2, 1]);
+    expect(move.path.at(-2)).toEqual({ row: 4, col: 4 });
+    expect(move.cost).toBe(3);
+    expect([eng.previewAttack(move).attack, eng.previewAttack(move).defense]).toEqual([1, 1]);
+  });
+
+  it("l'Avant-garde ne peut pas contourner la cible pour obtenir la charge", () => {
+    // Terrain plat, Sentinelle à 2 cases : le chemin le plus court coûte 2 → pas de charge, 2 contre 3.
+    // (Un détour de coût 4 donnerait la charge : il n'est pas autorisé.)
+    const v = piece('vanguard', 1, 4, 3);
+    const t = piece('sentinel', 2, 4, 5);
+    const eng = new LocalEngine(state(flat(), [v, t]));
+    expect(attackOn(eng.getLegalMoves(v.id), t.id)).toBeUndefined();
+    const [b] = eng.getBlockedAttacks(v.id);
+    expect(b).toMatchObject({ targetId: t.id, reason: 'weak', attack: 2, defense: 3, cost: 2 });
+  });
+
+  it("à coût minimal égal, la case d'appui qui donne la meilleure attaque est choisie", () => {
+    // Avant-garde en (5,4) h=1, cible en (4,5) h=1. Deux approches de même coût total 4 :
+    // (5,5) h=0 (pas 2 + entrée 2) → −1 hauteur ; (4,4) h=2 (pas 2 + entrée 2) → +1 hauteur.
+    const v = piece('vanguard', 1, 5, 4);
+    const t = piece('vanguard', 2, 4, 5);
+    const h = flat([[5, 4, 1], [4, 5, 1], [4, 4, 2], [5, 5, 0], [3, 5, 3], [4, 6, 3]]);
+    const eng = new LocalEngine(state(h, [v, t]));
+    const move = attackOn(eng.getLegalMoves(v.id), t.id)!;
+    expect(move.cost).toBe(4);
+    expect(move.path.at(-2)).toEqual({ row: 4, col: 4 });
+    expect(eng.previewAttack(move).attack).toBe(4); // 2 + 1 hauteur + 1 charge
   });
 
   it("charge de l'Avant-garde : chemin de coût 4 → +1", () => {

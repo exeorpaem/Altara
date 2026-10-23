@@ -90,10 +90,11 @@ function sections(): Section[] {
         <div class="rp-formula"><b>Défense</b> = Force du défenseur
           <br>+ ${combat.reinforcement} par <b>renfort</b> : pièce alliée du défenseur voisine de lui</div>
         <ul>
-          <li>La <b>case d'appui</b> est la case voisine de la cible d'où l'attaquant entre. S'il y en a plusieurs,
-            le jeu choisit <b>automatiquement</b> celle qui donne la meilleure attaque (à égalité, la moins chère).</li>
+          <li>La <b>case d'appui</b> est la case voisine de la cible d'où l'attaquant entre. L'attaque passe
+            toujours par le <b>chemin le plus court</b> jusqu'à la cible (pas de détour pour gagner la charge ou la hauteur).
+            Si plusieurs cases d'appui donnent ce même coût, le jeu choisit celle qui donne la meilleure attaque.</li>
           <li>La hauteur des alliés et des renforts ne compte pas.</li>
-          <li><b>Charge de l'${v.name}</b> : +${combat.charge} si son trajet passant par la case d'appui coûte
+          <li><b>Charge de l'${v.name}</b> : +${combat.charge} si le chemin le plus court jusqu'à la cible coûte
             <b>exactement ${combat.chargeCost}</b>.</li>
           <li>Un anneau gris signale une attaque impossible ; survole-le pour savoir pourquoi.</li>
         </ul>`,
