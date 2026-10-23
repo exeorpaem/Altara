@@ -61,6 +61,32 @@ export function sharedBuffers(n: number): ReachBuffers {
 }
 
 /**
+ * Parcourt chaque approche d'une cible ennemie : case d'appui `a` atteinte (Dijkstra déjà dans `buf`),
+ * voisine de la cible en `t` (pièce `q`), avec le coût total entrée comprise.
+ */
+function forEachApproach(
+  s: CoreState,
+  p: number,
+  buf: ReachBuffers,
+  opts: MovementOptions,
+  fn: (q: number, a: number, cost: number, t: number) => void,
+): void {
+  const { heights, neigh } = s.topo;
+  const player = s.pplayer[p];
+  const { dist, cells, count } = buf;
+  for (let i = 0; i < count; i++) {
+    const a = cells[i];
+    for (let k = 0; k < 4; k++) {
+      const t = neigh[a * 4 + k];
+      if (t < 0) continue;
+      const q = s.board[t];
+      if (q < 0 || s.pplayer[q] === player) continue;
+      fn(q, a, dist[a] + (opts.attackEntryUsesHeight ? stepCost(heights[a], heights[t]) : 1), t);
+    }
+  }
+}
+
+/**
  * Coups légaux d'une pièce, ajoutés à `out`.
  * Si `buf` est fourni, il contient après l'appel le Dijkstra de la pièce
  * (utilisé par movement.ts pour reconstruire les chemins).
@@ -75,7 +101,7 @@ export function pieceActions(
   onlyAttacks = false,
 ): void {
   if (s.pstatus[p] !== ST_BOARD) return;
-  const { size, heights, neigh, diag, leap, leapMid } = s.topo;
+  const { size, diag, leap, leapMid } = s.topo;
   const type = s.ptype[p];
   const player = s.pplayer[p] as PlayerId;
   const budget = MOVEMENT[type];
@@ -100,37 +126,24 @@ export function pieceActions(
     if (cost <= budget) out.push({ kind: K_EXIT, piece: p, dest: c, cost, target: -1, via: -1 });
   }
 
-  // --- Attaques : pour chaque cible, la case d'appui qui donne la meilleure attaque ---
-  // (la hauteur et la charge dépendent de la case d'appui). À attaque égale, la moins chère.
+  // --- Attaques : seul le chemin LE PLUS COURT (coût minimal, entrée comprise) est autorisé ---
+  // Pas de détour pour gagner la charge ou une meilleure hauteur. Si plusieurs cases d'appui
+  // donnent ce même coût minimal, on garde celle qui donne la meilleure attaque.
   // Les attaques trop faibles (attaque < défense) ne sont pas proposées.
-  const firstAttack = out.length;
-  const bestAttack: number[] = [];
-  for (let i = 0; i < count; i++) {
-    const a = cells[i];
-    for (let k = 0; k < 4; k++) {
-      const t = neigh[a * 4 + k];
-      if (t < 0) continue;
-      const q = s.board[t];
-      if (q < 0 || s.pplayer[q] === player) continue;
-      const entry = opts.attackEntryUsesHeight ? stepCost(heights[a], heights[t]) : 1;
-      const cost = dist[a] + entry;
-      if (cost > budget) continue;
-      const r = combat(s, p, q, cost, a);
-      if (r.attack < r.defense) continue;
-      let j = firstAttack;
-      while (j < out.length && out[j].target !== q) j++;
-      if (j === out.length) {
-        out.push({ kind: K_ATTACK, piece: p, dest: t, cost, target: q, via: a });
-        bestAttack.push(r.attack);
-      } else {
-        const b = j - firstAttack;
-        if (r.attack > bestAttack[b] || (r.attack === bestAttack[b] && cost < out[j].cost)) {
-          out[j].cost = cost;
-          out[j].via = a;
-          bestAttack[b] = r.attack;
-        }
-      }
-    }
+  const minCost = new Map<number, number>();
+  forEachApproach(s, p, buf, opts, (q, _a, cost) => {
+    const m = minCost.get(q);
+    if (m === undefined || cost < m) minCost.set(q, cost);
+  });
+  const best = new Map<number, { via: number; dest: number; attack: number; defense: number }>();
+  forEachApproach(s, p, buf, opts, (q, a, cost, t) => {
+    if (cost !== minCost.get(q) || cost > budget) return;
+    const r = combat(s, p, q, cost, a);
+    const b = best.get(q);
+    if (!b || r.attack > b.attack) best.set(q, { via: a, dest: t, attack: r.attack, defense: r.defense });
+  });
+  for (const [q, b] of best) {
+    if (b.attack >= b.defense) out.push({ kind: K_ATTACK, piece: p, dest: b.dest, cost: minCost.get(q)!, target: q, via: b.via });
   }
 
   // --- Coups spéciaux de l'Explorateur : case d'arrivée vide, relief ignoré ---
@@ -173,31 +186,21 @@ export function blockedAttacks(
   buf: ReachBuffers = sharedBuffers(s.topo.n),
 ): BlockedAttackAction[] {
   if (s.pstatus[p] !== ST_BOARD) return [];
-  const { heights, neigh } = s.topo;
-  const player = s.pplayer[p];
   const budget = MOVEMENT[s.ptype[p]];
   reach(s, s.ppos[p], budget, buf);
-  const { dist, cells, count } = buf;
-  // Par cible : l'approche la moins chère (pour 'range') et la meilleure attaque à portée (pour 'weak').
+  // Par cible : coût minimal ; parmi les cases d'appui de ce coût, la meilleure attaque.
   const cheapest = new Map<number, { via: number; cost: number }>();
+  forEachApproach(s, p, buf, opts, (q, a, cost) => {
+    const prev = cheapest.get(q);
+    if (!prev || cost < prev.cost) cheapest.set(q, { via: a, cost });
+  });
   const best = new Map<number, { via: number; cost: number; attack: number; defense: number }>();
-  for (let i = 0; i < count; i++) {
-    const a = cells[i];
-    for (let k = 0; k < 4; k++) {
-      const t = neigh[a * 4 + k];
-      if (t < 0) continue;
-      const q = s.board[t];
-      if (q < 0 || s.pplayer[q] === player) continue;
-      const cost = dist[a] + (opts.attackEntryUsesHeight ? stepCost(heights[a], heights[t]) : 1);
-      const prev = cheapest.get(q);
-      if (!prev || cost < prev.cost) cheapest.set(q, { via: a, cost });
-      if (cost > budget) continue;
-      const r = combat(s, p, q, cost, a);
-      const b = best.get(q);
-      if (!b || r.attack > b.attack || (r.attack === b.attack && cost < b.cost))
-        best.set(q, { via: a, cost, attack: r.attack, defense: r.defense });
-    }
-  }
+  forEachApproach(s, p, buf, opts, (q, a, cost) => {
+    if (cost !== cheapest.get(q)!.cost || cost > budget) return;
+    const r = combat(s, p, q, cost, a);
+    const b = best.get(q);
+    if (!b || r.attack > b.attack) best.set(q, { via: a, cost, attack: r.attack, defense: r.defense });
+  });
   const out: BlockedAttackAction[] = [];
   for (const [q, c] of cheapest) {
     const b = best.get(q);

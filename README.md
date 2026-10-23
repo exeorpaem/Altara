@@ -82,9 +82,9 @@ entrée comprise avec le dénivelé). Légal si **attaque ≥ défense** ; le d�
 
 - Attaque = Force de base + hauteur (+1 si la **case d'appui** — la case voisine de la cible d'où l'on entre — est plus
   haute que la cible, −1 si plus basse) + Force de base de chaque autre allié adjacent à la cible + charge (+1 pour une
-  Avant-garde dont le chemin passant par cette case d'appui coûte exactement 4).
-- S'il y a plusieurs cases d'appui possibles, le jeu choisit automatiquement celle qui donne la meilleure attaque
-  (à attaque égale, la moins chère).
+  Avant-garde dont le chemin le plus court jusqu'à la cible coûte exactement 4).
+- L'attaque passe toujours par le **chemin le plus court** (coût minimal, entrée comprise) : pas de détour pour gagner
+  la charge ou la hauteur. Si plusieurs cases d'appui donnent ce coût minimal, le jeu choisit la meilleure attaque.
 - Défense = Force de base + 1 par allié du défenseur adjacent à lui.
 
 **Fin de partie**
